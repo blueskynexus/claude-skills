@@ -2,7 +2,7 @@
 
 Downloadable Claude skill packs powered by the [viaNexus MCP server](https://vianexus.com/vast/#panel-mcp-service) and the [MT Newswires Claude connector](https://vianexus.com/vast/#sub-connect-mtnewswires). Drop any of these into Claude to give it institutional-grade financial workflows out of the box.
 
-> **New to viaNexus?** Start at the [VAST landing page](https://vianexus.com/vast/) — it covers what VAST is, how to connect Claude, and the full dataset catalog.
+> **New to viaNexus?** [Start here](https://vianexus.com/vast/) — **VAST** (viaNexus Agentic Service Technology) covers what VAST is, how to connect Claude, and the full dataset catalog.
 
 ---
 
