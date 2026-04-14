@@ -87,14 +87,11 @@ Each skill's `SKILL.md` declares its `compatibility.tools` array so Claude knows
 
 ---
 
-## Contributing a new skill
+## Requesting a new skill
 
-1. Create a new folder: `my-skill/SKILL.md`
-2. Add YAML frontmatter with `name`, `description`, and `compatibility.tools`
-3. Write the body in structured steps (see existing skills for pattern)
-4. Test against live viaNexus MCP data before opening a PR
+This repo is **curated** — skills are authored and verified by the viaNexus team against live MCP data before being published. External PRs adding new skills will not be merged.
 
-The skill pattern we follow: Understand Request → Anchor Date → Fetch → Deduplicate → Synthesize. Keep descriptions trigger-rich so Claude's skill matcher finds you.
+Have an idea for a skill you'd like us to build? Email [contact@vianexus.com](mailto:contact@vianexus.com) or open a [GitHub issue](https://github.com/blueskynexus/claude-skills/issues) describing the workflow you want (tickers, datasets, output shape). If it fits the roadmap, we'll build, test, and ship it.
 
 ---
 
