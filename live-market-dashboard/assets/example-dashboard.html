@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>viaNexus Live Market Dashboard</title>
+<style>
+  :root {
+    --bg: #0b0e14; --panel: #12161f; --panel2: #171c27; --line: #232a38;
+    --text: #d7dde8; --dim: #7d8799; --up: #2fbf71; --down: #e5484d;
+    --accent: #4f8ff7; --warn: #e8a33d; --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body { background: var(--bg); color: var(--text); font: 14px/1.45 -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 14px 18px; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--bg); z-index: 5; }
+  header h1 { font-size: 16px; font-weight: 600; margin-right: 6px; }
+  .chip { font-size: 11px; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--dim); }
+  .chip.open { color: var(--up); border-color: var(--up); }
+  .spacer { flex: 1; }
+  input, select, button { background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 6px 9px; font-size: 12px; }
+  input:focus, select:focus { outline: 1px solid var(--accent); }
+  button { cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  #tokenInput { width: 230px; font-family: var(--mono); }
+  #banner { display: none; padding: 8px 18px; font-size: 13px; }
+  #banner.err { display: block; background: #3a1518; color: #ffb3b5; }
+  #banner.warn { display: block; background: #33270f; color: #ffd88f; }
+  main { padding: 16px 18px 40px; max-width: 1200px; margin: 0 auto; }
+  section { margin-bottom: 22px; }
+  h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--dim); margin-bottom: 8px; }
+  /* spectrum band */
+  #spectrumWrap { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px 4px; }
+  #spectrum { width: 100%; height: 130px; display: block; }
+  .spec-axis { fill: var(--dim); font-size: 10px; font-family: var(--mono); }
+  .spec-line { cursor: pointer; }
+  .spec-label { font-size: 9px; font-family: var(--mono); fill: var(--dim); cursor: pointer; }
+  /* group tables */
+  table { width: 100%; border-collapse: collapse; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  th, td { padding: 8px 12px; text-align: right; font-size: 13px; border-bottom: 1px solid var(--line); }
+  th { color: var(--dim); font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; }
+  th:first-child, td:first-child { text-align: left; }
+  tr.sym { cursor: pointer; }
+  tr.sym:hover { background: var(--panel2); }
+  tr.sym.sel { background: #1a2540; }
+  tr:last-child td { border-bottom: none; }
+  .tick { font-weight: 600; font-family: var(--mono); }
+  .name { color: var(--dim); font-size: 11px; }
+  .up { color: var(--up); } .down { color: var(--down); }
+  .badge { display: inline-block; font-size: 9px; padding: 1px 5px; border-radius: 4px; margin-left: 6px; vertical-align: 1px; }
+  .badge.d { background: #33270f; color: var(--warn); }
+  .badge.suspect { background: #3a1518; color: #ffb3b5; }
+  .rangebar { width: 110px; height: 5px; background: var(--line); border-radius: 3px; position: relative; display: inline-block; }
+  .rangebar i { position: absolute; top: -2px; width: 3px; height: 9px; background: var(--accent); border-radius: 2px; }
+  .mono { font-family: var(--mono); }
+  /* detail */
+  #detail { display: none; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
+  #detail.show { display: block; }
+  #detailHead { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+  #detailHead .px { font-size: 22px; font-weight: 600; font-family: var(--mono); }
+  #spark { width: 100%; height: 90px; display: block; margin: 6px 0 10px; }
+  .newsitem { padding: 7px 0; border-top: 1px solid var(--line); font-size: 13px; }
+  .newsitem a { color: var(--text); text-decoration: none; }
+  .newsitem a:hover { color: var(--accent); }
+  .newsmeta { color: var(--dim); font-size: 11px; margin-top: 2px; }
+  /* call log */
+  #log { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; font-family: var(--mono); font-size: 11px; max-height: 160px; overflow-y: auto; }
+  #log div { padding: 2px 0; color: var(--dim); }
+  #log .ok { color: var(--up); } #log .bad { color: var(--down); }
+  footer { color: var(--dim); font-size: 11px; padding: 0 18px 30px; max-width: 1200px; margin: 0 auto; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Live Market Dashboard</h1>
+  <span id="mktChip" class="chip">—</span>
+  <span id="freshChip" class="chip">snapshot</span>
+  <div class="spacer"></div>
+  <input id="tokenInput" type="password" placeholder="paste viaNexus pk_ token" autocomplete="off">
+  <select id="cadence">
+    <option value="30000">30s</option>
+    <option value="60000" selected>60s</option>
+    <option value="300000">5m</option>
+    <option value="0">manual</option>
+  </select>
+  <button id="refreshBtn">refresh now</button>
+</header>
+<div id="banner"></div>
+
+<main>
+  <section id="spectrumWrap">
+    <h2>Session spectrum — position = day change, height = volume vs 30d avg</h2>
+    <svg id="spectrum" preserveAspectRatio="none"></svg>
+  </section>
+
+  <div id="groups"></div>
+
+  <section id="detail">
+    <div id="detailHead"></div>
+    <svg id="spark" preserveAspectRatio="none"></svg>
+    <div id="news"></div>
+  </section>
+
+  <section>
+    <h2>Call log</h2>
+    <div id="log"></div>
+  </section>
+</main>
+
+<footer>
+  Some prices are 15 minute delayed (marked <b>D</b>). 15 minute delayed price — source: UTP SIP.
+  Data: <a href="https://vianexus.com/vast/" style="color:var(--dim)">viaNexus</a>.
+  Informational only — not investment advice.
+</footer>
+
+<script>
+"use strict";
+/* ================= CONFIG — edit your watchlist here ================= */
+const GROUPS = [
+  { name: "Megacap Tech",   symbols: ["AAPL","MSFT","NVDA","GOOGL","AMZN","META"] },
+  { name: "Semiconductors", symbols: ["AMD","AVGO","TSM"] },
+  { name: "ETF Benchmarks", symbols: ["SPY","QQQ","IWM","VTI"] },
+];
+const QUOTE_FIELDS = "symbol,companyName,latestPrice,change,changePercent,latestVolume,avgTotalVolume,week52High,week52Low,latestSource,latestUpdate,marketCap,peRatio,isUSMarketOpen";
+const BASE = "https://api.blueskyapi.com/v1/data";
+/* Snapshot captured at build time so the page renders before a token is set */
+const SNAPSHOT = [{"symbol":"AAPL","companyName":"Apple Inc","latestPrice":340.08,"change":3.17,"changePercent":0.00941,"latestVolume":57064.09505699999,"avgTotalVolume":59576014,"week52High":339.57,"week52Low":201.5,"latestSource":"Prior close","latestUpdate":0,"marketCap":4994876028480,"peRatio":41.17,"isUSMarketOpen":false},{"symbol":"MSFT","companyName":"Microsoft Corporation","latestPrice":393.35,"change":4.25,"changePercent":0.01092,"latestVolume":168169.40099599998,"avgTotalVolume":41468797,"week52High":555.45,"week52Low":349.2,"latestSource":"Prior close","latestUpdate":0,"marketCap":2921974790818,"peRatio":23.41,"isUSMarketOpen":false},{"symbol":"NVDA","companyName":"NVIDIA Corp","latestPrice":197.01,"change":0.5,"changePercent":0.00254,"latestVolume":785309.9024879994,"avgTotalVolume":137731021,"week52High":236.54,"week52Low":164.07,"latestSource":"Prior close","latestUpdate":0,"marketCap":4767642000000,"peRatio":30.17,"isUSMarketOpen":false},{"symbol":"GOOGL","companyName":"Alphabet Inc - Ordinary Shares - Class A","latestPrice":336,"change":2.29,"changePercent":0.00686,"latestVolume":143144.58427799997,"avgTotalVolume":34208637,"week52High":408.61,"week52Low":187.82,"latestSource":"15 minute delayed price","latestUpdate":1785332706420,"marketCap":1971648000000,"peRatio":16.88,"isUSMarketOpen":false},{"symbol":"AMZN","companyName":"Amazon.com Inc.","latestPrice":230.78,"change":-0.08,"changePercent":-0.00035,"latestVolume":78034.51567200001,"avgTotalVolume":53686056,"week52High":278.56,"week52Low":196,"latestSource":"15 minute delayed price","latestUpdate":1785332707643,"marketCap":2482525715640,"peRatio":27.61,"isUSMarketOpen":false},{"symbol":"META","companyName":"Meta Platforms Inc - Ordinary Shares - Class A","latestPrice":595.18,"change":1.77,"changePercent":0.00298,"latestVolume":41410.70281099999,"avgTotalVolume":18355044,"week52High":796.25,"week52Low":520.26,"latestSource":"15 minute delayed price","latestUpdate":1785332705540,"marketCap":1307042413066,"peRatio":21.64,"isUSMarketOpen":false},{"symbol":"AMD","companyName":"Advanced Micro Devices Inc.","latestPrice":452.28,"change":-2.34,"changePercent":-0.00515,"latestVolume":89612.66743200002,"avgTotalVolume":29016849,"week52High":584.73,"week52Low":149.22,"latestSource":"15 minute delayed price","latestUpdate":1785332706690,"marketCap":737488057007,"peRatio":148.29,"isUSMarketOpen":false},{"symbol":"AVGO","companyName":"Broadcom Inc","latestPrice":380.31,"change":-0.6,"changePercent":-0.00158,"latestVolume":18369.057346000005,"avgTotalVolume":25124963,"week52High":495,"week52Low":281.61,"latestSource":"15 minute delayed price","latestUpdate":1785332709248,"marketCap":1809355325101,"peRatio":63.28,"isUSMarketOpen":false},{"symbol":"TSM","companyName":"Taiwan Semiconductor Manufacturing - ADR","latestPrice":388.8,"change":-3.51,"changePercent":-0.00895,"latestVolume":38201.693589999995,"avgTotalVolume":14842097,"week52High":479,"week52Low":223.7,"latestSource":"Unofficial","latestUpdate":1785332700140,"marketCap":2016513106675,"peRatio":37.35,"isUSMarketOpen":false},{"symbol":"SPY","companyName":"SPDR S&P 500 ETF TRUST - SPDR S&P 500 ETF Trust","latestPrice":740.86,"change":1.77,"changePercent":0.00239,"latestVolume":301228.6783780003,"avgTotalVolume":52621176,"week52High":760.4,"week52Low":69.01,"latestSource":"Prior close","latestUpdate":0,"marketCap":734955345800,"peRatio":24.22,"isUSMarketOpen":false},{"symbol":"QQQ","companyName":"Invesco QQQ Trust Series 1 - Invesco QQQ Trust Series 1","latestPrice":675.49,"change":-6.63,"changePercent":-0.00972,"latestVolume":330177.206458,"avgTotalVolume":41595338,"week52High":748.65,"week52Low":551.68,"latestSource":"Prior close","latestUpdate":0,"marketCap":393574248500,"peRatio":30.43,"isUSMarketOpen":false},{"symbol":"IWM","companyName":"iShares Trust - iShares Russell 2000 Index Fund","latestPrice":293.37,"change":0.46,"changePercent":0.00157,"latestVolume":82790.860866,"avgTotalVolume":23915670,"week52High":302.72,"week52Low":212.34,"latestSource":"Prior close","latestUpdate":0,"marketCap":87204232500,"peRatio":17.63,"isUSMarketOpen":false},{"symbol":"VTI","companyName":"Vanguard Index Funds - Vanguard Total Stock Market ETF","latestPrice":365.91,"change":-0.08,"changePercent":-0.00022,"latestVolume":1546.0846770000003,"avgTotalVolume":3232812,"week52High":374.7,"week52Low":304.4,"latestSource":"Unofficial","latestUpdate":1785332700418,"marketCap":548367966517,"peRatio":23.04,"isUSMarketOpen":false}];
+/* ===================================================================== */
+
+const ALL = GROUPS.flatMap(g => g.symbols);
+const state = { quotes: {}, selected: null, histCache: {}, newsCache: {}, stale: false };
+let timer = null, busy = false;
+
+const $ = id => document.getElementById(id);
+const esc = t => { const d = document.createElement("span"); d.textContent = t == null ? "" : String(t); return d.innerHTML; };
+const fmtPx = v => v == null ? "—" : v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmtPct = v => v == null ? "—" : (v * 100 >= 0 ? "+" : "") + (v * 100).toFixed(2) + "%";
+const fmtCap = v => v == null ? "—" : v >= 1e12 ? (v/1e12).toFixed(2)+"T" : v >= 1e9 ? (v/1e9).toFixed(1)+"B" : (v/1e6).toFixed(0)+"M";
+const isDelayed = q => /delayed/i.test(q.latestSource || "");
+
+function getToken() { return $("tokenInput").value.trim(); }
+
+function logCall(what, rows, status, ms) {
+  const el = document.createElement("div");
+  el.innerHTML = `${new Date().toLocaleTimeString()} <span class="${status === 200 ? "ok" : "bad"}">${status}</span> ${esc(what)} — ${rows} rows, ${Math.round(ms)}ms`;
+  const log = $("log");
+  log.prepend(el);
+  while (log.children.length > 50) log.lastChild.remove();
+}
+
+function banner(kind, msg) {
+  const b = $("banner");
+  b.className = kind || "";
+  b.textContent = msg || "";
+}
+
+async function api(path, what) {
+  const t0 = performance.now();
+  const res = await fetch(`${BASE}/${path}${path.includes("?") ? "&" : "?"}token=${encodeURIComponent(getToken())}`);
+  let rows = 0, body = null;
+  if (res.ok) { body = await res.json(); rows = Array.isArray(body) ? body.length : 1; }
+  logCall(what, rows, res.status, performance.now() - t0);
+  if (res.status === 401 || res.status === 403) { const e = new Error("auth"); e.auth = true; throw e; }
+  if (!res.ok) throw new Error("HTTP " + res.status);
+  return body;
+}
+
+/* ---------- rendering ---------- */
+
+function volRatio(q) {
+  if (!q.isUSMarketOpen || !q.avgTotalVolume || !q.latestVolume || q.latestVolume < 1000) return null;
+  return q.latestVolume / q.avgTotalVolume;
+}
+
+function rangeInfo(q) {
+  const lo = q.week52Low, hi = q.week52High, p = q.latestPrice;
+  if (lo == null || hi == null || p == null || hi <= lo) return { pos: null, suspect: true };
+  const pos = Math.min(1, Math.max(0, (p - lo) / (hi - lo)));
+  const suspect = p < lo * 0.9 || p > hi * 1.1;
+  return { pos, suspect };
+}
+
+function renderGroups() {
+  const host = $("groups");
+  host.innerHTML = "";
+  for (const g of GROUPS) {
+    const sec = document.createElement("section");
+    sec.innerHTML = `<h2>${esc(g.name)}</h2>`;
+    const tbl = document.createElement("table");
+    tbl.innerHTML = `<tr><th>Symbol</th><th>Last</th><th>Day</th><th>Vol vs avg</th><th>52w range</th><th>Mkt cap</th><th>P/E</th></tr>`;
+    for (const s of g.symbols) {
+      const q = state.quotes[s];
+      const tr = document.createElement("tr");
+      tr.className = "sym" + (state.selected === s ? " sel" : "");
+      if (!q) {
+        tr.innerHTML = `<td><span class="tick">${esc(s)}</span> <span class="badge suspect">no data</span></td><td colspan="6" class="name">symbol did not resolve in quote dataset</td>`;
+      } else {
+        const vr = volRatio(q);
+        const ri = rangeInfo(q);
+        const cls = (q.changePercent ?? 0) >= 0 ? "up" : "down";
+        tr.innerHTML =
+          `<td><span class="tick">${esc(q.symbol)}</span>${isDelayed(q) ? '<span class="badge d" title="15 minute delayed price">D</span>' : ""}${ri.suspect ? '<span class="badge suspect">range suspect</span>' : ""}<div class="name">${esc(q.companyName)}</div></td>` +
+          `<td class="mono">${fmtPx(q.latestPrice)}</td>` +
+          `<td class="mono ${cls}">${fmtPct(q.changePercent)}</td>` +
+          `<td class="mono">${vr == null ? '<span class="name">n/a</span>' : vr.toFixed(1) + "x"}</td>` +
+          `<td>${ri.pos == null ? "—" : `<span class="rangebar"><i style="left:${(ri.pos * 100).toFixed(0)}%"></i></span>`}</td>` +
+          `<td class="mono">${fmtCap(q.marketCap)}</td>` +
+          `<td class="mono">${q.peRatio == null ? "—" : q.peRatio.toFixed(1)}</td>`;
+        tr.onclick = () => select(s);
+      }
+      tbl.appendChild(tr);
+    }
+    sec.appendChild(tbl);
+    host.appendChild(sec);
+  }
+}
+
+function renderSpectrum() {
+  const svg = $("spectrum");
+  const W = 1000, H = 130, MID = W / 2;
+  const qs = ALL.map(sym => state.quotes[sym]).filter(Boolean);
+  // scale the window to the day's actual dispersion so quiet days still spread out
+  const maxAbs = Math.max(0.005, ...qs.map(q => Math.abs(q.changePercent ?? 0)));
+  const LIM = maxAbs * 1.25;
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  let s = `<line x1="${MID}" y1="10" x2="${MID}" y2="${H - 24}" stroke="#232a38"/>`;
+  for (const f of [-1, -0.5, 0, 0.5, 1]) {
+    const pct = f * LIM * 100;
+    s += `<text class="spec-axis" x="${MID + f * (W / 2 - 30)}" y="${H - 10}" text-anchor="middle">${pct > 0 ? "+" : ""}${pct.toFixed(1)}%</text>`;
+  }
+  // stagger labels into two rows when neighbors are too close to read
+  const placed = qs.map(q => ({ q, x: MID + (Math.max(-LIM, Math.min(LIM, q.changePercent ?? 0)) / LIM) * (W / 2 - 30) }))
+                   .sort((a, b) => a.x - b.x);
+  let prevX = -1e9, row = 0;
+  for (const p of placed) {
+    row = (p.x - prevX < 34) ? 1 - row : 0;
+    prevX = p.x;
+    const vr = volRatio(p.q);
+    const h = 25 + Math.min(60, (vr ?? 1) * 25);
+    const col = (p.q.changePercent ?? 0) >= 0 ? "var(--up)" : "var(--down)";
+    const sel = state.selected === p.q.symbol;
+    s += `<g class="spec-line" data-sym="${esc(p.q.symbol)}">` +
+         `<line x1="${p.x}" y1="${H - 24}" x2="${p.x}" y2="${H - 24 - h}" stroke="${col}" stroke-width="${sel ? 4 : 2}" opacity="${sel ? 1 : 0.75}"/>` +
+         `<text class="spec-label" x="${p.x}" y="${H - 28 - h - row * 11}" text-anchor="middle"${sel ? ' fill="var(--text)"' : ""}>${esc(p.q.symbol)}</text></g>`;
+  }
+  svg.innerHTML = s;
+  svg.querySelectorAll(".spec-line").forEach(g => g.addEventListener("click", () => select(g.dataset.sym)));
+}
+
+function renderHeader() {
+  const anyQ = Object.values(state.quotes)[0];
+  const open = anyQ ? anyQ.isUSMarketOpen : null;
+  const chip = $("mktChip");
+  chip.textContent = open == null ? "—" : open ? "market open" : "market closed";
+  chip.className = "chip" + (open ? " open" : "");
+}
+
+function renderAll() { renderHeader(); renderSpectrum(); renderGroups(); }
+
+/* ---------- detail panel ---------- */
+
+async function select(sym) {
+  state.selected = sym;
+  renderSpectrum(); renderGroups();
+  const q = state.quotes[sym];
+  const d = $("detail");
+  d.classList.add("show");
+  const cls = (q?.changePercent ?? 0) >= 0 ? "up" : "down";
+  $("detailHead").innerHTML =
+    `<span class="tick" style="font-size:18px">${esc(sym)}</span>` +
+    `<span class="px">${fmtPx(q?.latestPrice)}</span>` +
+    `<span class="mono ${cls}">${fmtPct(q?.changePercent)}</span>` +
+    `<span class="name">${esc(q?.companyName ?? "")}${q && isDelayed(q) ? " · 15 minute delayed price" : ""}</span>`;
+  $("spark").innerHTML = ""; $("news").innerHTML = '<div class="name">loading…</div>';
+  if (!getToken()) { $("news").innerHTML = '<div class="name">paste a pk_ token above to load history and news</div>'; return; }
+  try {
+    const [hist, news] = await Promise.all([
+      state.histCache[sym] ?? api(`EDGE/HISTORICAL_PRICES/${sym}?last=40&filter=priceDate,fclose`, `historical:${sym}`),
+      state.newsCache[sym] ?? api(`CORE/NEWS/${sym}?last=10&filter=headline,datetime,provider,qmUrl,uuid`, `news:${sym}`),
+    ]);
+    state.histCache[sym] = hist; state.newsCache[sym] = news;
+    if (state.selected !== sym) return;
+    drawSpark(hist);
+    drawNews(news);
+  } catch (e) {
+    $("news").innerHTML = `<div class="name">detail fetch failed: ${esc(e.message)}</div>`;
+  }
+}
+
+function drawSpark(hist) {
+  const pts = (hist || []).slice().reverse().map(r => r.fclose).filter(v => v != null);
+  if (pts.length < 2) return;
+  const W = 1000, H = 90, min = Math.min(...pts), max = Math.max(...pts), span = max - min || 1;
+  const xy = pts.map((v, i) => `${(i / (pts.length - 1)) * W},${H - 8 - ((v - min) / span) * (H - 16)}`);
+  const up = pts[pts.length - 1] >= pts[0];
+  $("spark").setAttribute("viewBox", `0 0 ${W} ${H}`);
+  $("spark").innerHTML =
+    `<polyline points="${xy.join(" ")}" fill="none" stroke="${up ? "var(--up)" : "var(--down)"}" stroke-width="2"/>` +
+    `<text class="spec-axis" x="4" y="12">${pts.length} sessions · ${fmtPx(min)} – ${fmtPx(max)}</text>`;
+}
+
+function drawNews(news) {
+  const seen = new Set();
+  const items = (news || []).filter(n => n.uuid && !seen.has(n.uuid) && seen.add(n.uuid));
+  $("news").innerHTML = items.length === 0 ? '<div class="name">no recent headlines</div>' :
+    items.map(n =>
+      `<div class="newsitem"><a href="${esc(n.qmUrl || "#")}" target="_blank" rel="noopener">${esc(n.headline)}</a>` +
+      `<div class="newsmeta">${esc(n.provider ?? "")} · ${n.datetime ? new Date(n.datetime).toLocaleString() : ""}</div></div>`
+    ).join("");
+}
+
+/* ---------- refresh loop ---------- */
+
+async function tick(force) {
+  if (busy) return;
+  if (!force && document.hidden) return;
+  if (!getToken()) { banner("warn", "Paste your viaNexus pk_ token (top right) to start live updates. Get one free at console.blueskyapi.com/auth/register."); return; }
+  busy = true;
+  try {
+    const rows = await api(`CORE/QUOTE/${ALL.join(",")}?filter=${QUOTE_FIELDS}`, "quote");
+    for (const q of rows) state.quotes[q.symbol] = q;
+    state.stale = false;
+    banner("", "");
+    $("freshChip").textContent = "live · " + new Date().toLocaleTimeString();
+    renderAll();
+  } catch (e) {
+    state.stale = true;
+    banner("err", e.auth
+      ? "viaNexus rejected the token (401/403). Check the pk_ token — data shown is the last good refresh."
+      : `Refresh failed (${e.message}) — showing last good data since ${$("freshChip").textContent.replace("live · ", "")}.`);
+  } finally { busy = false; }
+}
+
+function schedule() {
+  clearInterval(timer);
+  const ms = Number($("cadence").value);
+  if (ms > 0) timer = setInterval(tick, ms);
+}
+
+/* ---------- boot ---------- */
+
+for (const q of SNAPSHOT) state.quotes[q.symbol] = q;
+renderAll();
+
+const saved = localStorage.getItem("vnx_token");
+if (saved) $("tokenInput").value = saved;
+
+$("tokenInput").addEventListener("change", () => { localStorage.setItem("vnx_token", getToken()); tick(true); });
+$("cadence").addEventListener("change", schedule);
+$("refreshBtn").addEventListener("click", () => tick(true));
+document.addEventListener("visibilitychange", () => { if (!document.hidden) tick(); });
+
+schedule();
+tick(true);
+</script>
+</body>
+</html>

@@ -14,6 +14,7 @@ Downloadable Claude skill packs powered by the [viaNexus MCP server](https://via
 | [**mt-newswires-analyst**](./mt-newswires-analyst) | Real-time financial news briefings for tickers, sectors, or market themes. | MT Newswires (`mt_newswires_north_america`, `mt_newswires_global`) |
 | [**transcript-analysis**](./transcript-analysis) | Earnings call + corporate event breakdown — management quotes, guidance, analyst Q&A, tone. | viaNexus Aiera (`events_calendar`, `historical_events_transcripts`) |
 | [**portfolio-monitor**](./portfolio-monitor) | Daily portfolio brief combining quotes, alerts, and news for user-supplied holdings. | viaNexus (`quote`, `advanced_dividends`, `advanced_splits`) + MT Newswires |
+| [**live-market-dashboard**](./live-market-dashboard) | Claude builds you a self-updating, single-file HTML dashboard for any watchlist — live quotes, sparklines, news, call log. No backend, no build step. | viaNexus (`quote`, `historical_prices`, `news`) via MCP at build time + REST API at run time |
 
 ---
 
@@ -62,6 +63,7 @@ Just ask Claude a question that matches the skill. Each skill has a `description
 | mt-newswires-analyst | "Any news on Tesla today?" · "Oil sector briefing" · "Chevron analyst ratings" |
 | transcript-analysis | "Summarize AAPL's last earnings call" · "What did Nvidia say about AI demand?" |
 | portfolio-monitor | "How's my portfolio today? AAPL 100, MSFT 50, NVDA 25" · "Any movers in my holdings?" |
+| live-market-dashboard | "Build me a live dashboard for AAPL NVDA TSM SPY" · "Make a market monitor that refreshes itself" |
 
 ---
 
