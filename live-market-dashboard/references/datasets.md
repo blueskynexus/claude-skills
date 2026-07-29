@@ -28,10 +28,10 @@ absent — compare response symbols against the request list to detect them.
 |---|---|
 | `latestPrice` | The price to display. Best available source. |
 | `change`, `changePercent` | vs `previousClose`. **`changePercent` is a decimal** — 0.0094 means +0.94%. |
-| `latestSource` | `"synthetic real-time price"`, `"15 minute delayed price"`, `"Close"`, `"Prior close"`, `"official"`. Delayed ⇒ mandatory disclaimer. |
+| `latestSource` | Observed values: `"synthetic real-time price"`, `"15 minute delayed price"`, `"Close"`, `"Prior close"`, `"official"`, `"Unofficial"` (VNX price from extended hours — no disclaimer needed). Only "delayed" ⇒ mandatory disclaimer. |
 | `latestUpdate` | ms epoch; can be `0` when source is a prior close — don't render `1970` timestamps. |
 | `latestVolume`, `avgTotalVolume` | Ratio flags unusual activity, but only meaningful mid-session (`isUSMarketOpen: true`); `latestVolume` can be a tiny float off-hours. |
-| `week52High`, `week52Low` | Draw the range bar clamped: `latestPrice` can legitimately sit outside the bracket (fresh 52-week high/low) and occasionally the bracket itself is bad — tag those "range suspect". |
+| `week52High`, `week52Low` | Draw the range bar clamped: `latestPrice` can legitimately sit outside the bracket (fresh 52-week high/low) and occasionally the bracket itself is bad — tag "range suspect" only beyond ~10% tolerance. Real example: SPY has been observed with `week52Low: 69.01` against a ~740 price. |
 | `isUSMarketOpen` | Gate for volume ratio + "market open/closed" header chip. |
 
 Mutual funds (FZROX-style tickers) are not in this dataset. ETFs are.

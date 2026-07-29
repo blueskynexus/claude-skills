@@ -56,14 +56,16 @@ dropping them.
 
 ## Step 2 — Verify before you hardcode
 
-One `viaNexus:fetch` on dataset `quote` with **all** symbols comma-separated.
-Any symbol missing from the response gets flagged to the user, not guessed at.
-Keep this response — it becomes the embedded snapshot so the page never opens
-blank.
+One `viaNexus:fetch` on dataset `quote` (product `CORE`) with **all** symbols
+comma-separated. Any symbol missing from the response gets flagged to the user,
+not guessed at. Keep this response — it becomes the embedded snapshot so the
+page never opens blank.
 
-Sanity-check the snapshot while you have it: if a symbol's `week52Low`/`week52High`
-bracket excludes its own `latestPrice`, plan to clamp that bar and tag it
-"range suspect" rather than drawing nonsense.
+Sanity-check the snapshot while you have it: `latestPrice` can sit outside the
+`week52Low`/`week52High` bracket. Slightly outside is legitimate (a fresh
+52-week high or low — badge it as such if you like); far outside means the
+bracket itself is bad. Always clamp the range bar for drawing; tag
+"range suspect" only beyond a tolerance (e.g. `p < low*0.9 || p > high*1.1`).
 
 ## Step 3 — Token for the page
 
@@ -128,9 +130,16 @@ look broken at open or after hours:
 
 Open the file (or serve it) and confirm: it renders from the snapshot, the call
 log shows a 200 for the first poll (with token), and a wrong token produces the
-error banner, not a blank page. In environments where you can't open a browser,
-re-check the fetch URLs against [references/datasets.md](references/datasets.md)
-and say explicitly that the live loop is untested.
+error banner, not a blank page.
+
+In environments where you can't open a browser, run these checks instead and
+say explicitly that the live loop is untested:
+
+- Extract the embedded script and run `node --check` on it.
+- JSON-parse the embedded snapshot and confirm every watchlist symbol appears.
+- Grep the file for `pk_`/`sk_` to prove no token leaked in.
+- Re-check each fetch URL against [references/datasets.md](references/datasets.md)
+  (path casing, `filter=` field names are case-sensitive).
 
 Deliver as a file the user opens locally. Do **not** deliver as a hosted
 claude.ai artifact — the artifact sandbox blocks outbound requests, so the live
