@@ -126,7 +126,26 @@ look broken at open or after hours:
 - Prices to 2 decimals, market cap humanized (T/B/M).
 - No buy/sell recommendations anywhere on the page.
 
-## Step 6 — Verify, then deliver
+## Step 6 — Verify, then LAUNCH it
+
+Do not end by handing the user a file path. The finished move is the dashboard
+already open and polling in front of them. Work down this ladder and use the
+first rung that exists in your environment:
+
+1. **Browser pane / preview tool** (Claude Code desktop, Cowork): open the
+   generated file in the pane so it renders inside the session.
+2. **Desktop shell**: `open dashboard.html` (macOS), `xdg-open` (Linux), or
+   `start` (Windows) to pop it into the user's default browser.
+3. **No user-visible browser** (claude.ai web sandbox): present the file for
+   download and say plainly: "open this locally — the sandbox here has no
+   browser you can see, and hosted artifacts block the API calls this page
+   makes." Never silently skip the launch; always tell the user which rung
+   you used.
+
+After launch, remind the user of exactly one action: paste their pk_ token
+into the header input. Everything else should already be moving.
+
+### Verifying
 
 Open the file (or serve it) and confirm: it renders from the snapshot, the call
 log shows a 200 for the first poll (with token), and a wrong token produces the
@@ -141,9 +160,9 @@ say explicitly that the live loop is untested:
 - Re-check each fetch URL against [references/datasets.md](references/datasets.md)
   (path casing, `filter=` field names are case-sensitive).
 
-Deliver as a file the user opens locally. Do **not** deliver as a hosted
-claude.ai artifact — the artifact sandbox blocks outbound requests, so the live
-polling would silently fail there.
+Whatever rung you launch on, the deliverable stays a plain local file. Do
+**not** deliver as a hosted claude.ai artifact — the artifact sandbox blocks
+outbound requests, so the live polling would silently fail there.
 
 ---
 
