@@ -1,0 +1,589 @@
+<!--
+  rsi-screener — reference implementation.
+
+  Captured from viaNexus CORE/STOCK_STATS_US on 2026-08-04 with a single
+  request for 60 symbols (27.8 KB, 1.29 s). The page makes NO network
+  requests and contains NO token: the snapshot below is the whole data layer.
+
+  To regenerate for a different watchlist, replace the DATA array at the
+  bottom of this file. Each record is:
+    { symbol, name, rsi14, ma50, ma200 }
+  sorted ascending by rsi14. Everything else on the page derives from it.
+-->
+<title>RSI-14 momentum board</title>
+
+<style>
+  :root {
+    color-scheme: light;
+    --page:        #eceff3;
+    --surface:     #f7f9fb;
+    --surface-2:   #f1f4f7;
+    --ink:         #0e1620;
+    --ink-2:       #4b5a6c;
+    --ink-muted:   #6f7885;
+    --rule:        #dde3e9;
+    --axis:        #c3ccd5;
+    --ring:        rgba(14, 22, 32, 0.10);
+
+    /* diverging poles: cool = oversold, warm = overbought. Validated light+dark. */
+    --pole-cool:   #0d7fc4;
+    --pole-warm:   #a35f00;
+    --mid:         #6f7885;
+    --zone-cool:   rgba(13, 127, 196, 0.09);
+    --zone-warm:   rgba(163, 95, 0, 0.09);
+
+    /* chrome accent, never used on a data mark */
+    --accent:      #0b7f70;
+
+    --shadow: 0 1px 2px rgba(14,22,32,.05), 0 8px 24px -14px rgba(14,22,32,.28);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --page:      #080d10;
+      --surface:   #0c1317;
+      --surface-2: #111a20;
+      --ink:       #f2f6f8;
+      --ink-2:     #a8b4c0;
+      --ink-muted: #7d8794;
+      --rule:      #1d262d;
+      --axis:      #2b3540;
+      --ring:      rgba(255, 255, 255, 0.10);
+      --pole-cool: #2b96d6;
+      --pole-warm: #c07d18;
+      --mid:       #7d8794;
+      --zone-cool: rgba(43, 150, 214, 0.13);
+      --zone-warm: rgba(192, 125, 24, 0.13);
+      --accent:    #12b39c;
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px -14px rgba(0,0,0,.8);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --page:      #080d10;
+    --surface:   #0c1317;
+    --surface-2: #111a20;
+    --ink:       #f2f6f8;
+    --ink-2:     #a8b4c0;
+    --ink-muted: #7d8794;
+    --rule:      #1d262d;
+    --axis:      #2b3540;
+    --ring:      rgba(255, 255, 255, 0.10);
+    --pole-cool: #2b96d6;
+    --pole-warm: #c07d18;
+    --mid:       #7d8794;
+    --zone-cool: rgba(43, 150, 214, 0.13);
+    --zone-warm: rgba(192, 125, 24, 0.13);
+    --accent:    #12b39c;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px -14px rgba(0,0,0,.8);
+  }
+
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --page:      #eceff3;
+    --surface:   #f7f9fb;
+    --surface-2: #f1f4f7;
+    --ink:       #0e1620;
+    --ink-2:     #4b5a6c;
+    --ink-muted: #6f7885;
+    --rule:      #dde3e9;
+    --axis:      #c3ccd5;
+    --ring:      rgba(14, 22, 32, 0.10);
+    --pole-cool: #0d7fc4;
+    --pole-warm: #a35f00;
+    --mid:       #6f7885;
+    --zone-cool: rgba(13, 127, 196, 0.09);
+    --zone-warm: rgba(163, 95, 0, 0.09);
+    --accent:    #0b7f70;
+  }
+
+  .board {
+    --sans: system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    background: var(--page);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    padding: 28px 20px 56px;
+    min-height: 100%;
+  }
+  .board *, .board *::before, .board *::after { box-sizing: border-box; }
+  .wrap { max-width: 1140px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+
+  /* ---------- masthead ---------- */
+  .masthead {
+    display: flex; flex-wrap: wrap; align-items: flex-end;
+    justify-content: space-between; gap: 16px 28px;
+    padding-bottom: 18px; border-bottom: 1px solid var(--rule);
+  }
+  .eyebrow {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--ink-muted); margin: 0 0 6px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .dot-live {
+    width: 7px; height: 7px; border-radius: 50%; background: var(--accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+  }
+  .masthead h1 {
+    margin: 0; font-size: clamp(28px, 4.2vw, 40px); line-height: 1.1;
+    letter-spacing: -.021em; font-weight: 620; text-wrap: balance;
+  }
+  .masthead h1 .thin { color: var(--ink-2); font-weight: 400; }
+  .standfirst { margin: 10px 0 0; max-width: 56ch; color: var(--ink-2); font-size: 15px; }
+  .asof {
+    font-family: var(--mono); font-size: 12px; color: var(--ink-2);
+    text-align: right; line-height: 1.75; white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+  .asof b { color: var(--ink); font-weight: 600; }
+
+  /* ---------- tiles ---------- */
+  .tiles { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px; }
+  .tile {
+    background: var(--surface); border: 1px solid var(--ring); border-radius: 10px;
+    padding: 14px 16px 15px; box-shadow: var(--shadow);
+    display: flex; flex-direction: column; gap: 2px;
+    text-align: left; font: inherit; color: inherit; cursor: pointer;
+    border-left: 3px solid var(--edge, var(--axis));
+    transition: transform .12s ease, border-color .12s ease;
+  }
+  .tile:hover { transform: translateY(-1px); }
+  .tile[aria-pressed="true"] { border-color: color-mix(in srgb, var(--edge) 55%, var(--ring)); border-left-color: var(--edge); background: var(--surface-2); }
+  .tile:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .tile .k {
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: .09em;
+    text-transform: uppercase; color: var(--ink-muted);
+  }
+  .tile .v { font-size: 30px; font-weight: 600; letter-spacing: -.02em; line-height: 1.15; }
+  .tile .s { font-size: 12.5px; color: var(--ink-2); }
+  .tile.cool { --edge: var(--pole-cool); }
+  .tile.warm { --edge: var(--pole-warm); }
+  .tile.neut { --edge: var(--mid); }
+  .tile.all  { --edge: var(--accent); }
+
+  /* ---------- card ---------- */
+  .card {
+    background: var(--surface); border: 1px solid var(--ring);
+    border-radius: 12px; box-shadow: var(--shadow); overflow: hidden;
+  }
+  .card-head {
+    display: flex; flex-wrap: wrap; gap: 10px 20px;
+    align-items: baseline; justify-content: space-between;
+    padding: 16px 20px 12px;
+  }
+  .card-head h2 { margin: 0; font-size: 16px; font-weight: 600; letter-spacing: -.01em; }
+  .card-head p { margin: 3px 0 0; font-size: 13px; color: var(--ink-2); max-width: 62ch; }
+  .legend { display: flex; gap: 14px; font-size: 12px; color: var(--ink-2); flex-wrap: wrap; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+  .swatch { width: 10px; height: 10px; border-radius: 50%; box-shadow: 0 0 0 2px var(--surface); }
+
+  /* ---------- the rail ---------- */
+  .rail-scroll { overflow-x: auto; }
+  .rail { position: relative; min-width: 660px; padding: 0 20px 8px; }
+  .plot { position: relative; height: 168px; }
+  .zone { position: absolute; top: 0; bottom: 0; pointer-events: none; }
+  .zone.cool { background: var(--zone-cool); }
+  .zone.warm { background: var(--zone-warm); }
+  .rule-v { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--axis); pointer-events: none; }
+  .rule-v.mid { background: var(--rule); }
+  .rule-tag {
+    position: absolute; top: 2px; transform: translateX(-50%);
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: .06em;
+    color: var(--ink-muted); background: var(--surface); padding: 0 5px; white-space: nowrap;
+  }
+  .baseline { position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: var(--axis); }
+
+  .pt {
+    position: absolute; width: 11px; height: 11px; border-radius: 50%;
+    transform: translateX(-50%); border: 0; padding: 0; cursor: pointer;
+    box-shadow: 0 0 0 2px var(--surface);
+    transition: transform .1s ease;
+  }
+  .pt.cool { background: var(--pole-cool); }
+  .pt.warm { background: var(--pole-warm); }
+  .pt.neut { background: var(--mid); }
+  .pt:hover, .pt:focus-visible { transform: translateX(-50%) scale(1.45); z-index: 5; outline: none; box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--ink-muted); }
+  .pt.dim { opacity: .18; }
+  .pin {
+    position: absolute; transform: translateX(-50%);
+    font-family: var(--mono); font-size: 11px; color: var(--ink);
+    white-space: nowrap; pointer-events: none; text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
+  .pin em { display: block; font-style: normal; font-size: 10px; color: var(--ink-muted); }
+
+  .axis-row {
+    position: relative; height: 20px; margin-top: 6px;
+    font-family: var(--mono); font-size: 11px; color: var(--ink-muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .axis-row span { position: absolute; transform: translateX(-50%); }
+
+  .tip {
+    position: absolute; z-index: 20; pointer-events: none; opacity: 0;
+    transform: translate(-50%, -100%);
+    background: var(--ink); color: var(--page);
+    border-radius: 7px; padding: 8px 10px; min-width: 148px;
+    font-size: 12px; line-height: 1.45; box-shadow: var(--shadow);
+    transition: opacity .1s ease;
+  }
+  .tip.on { opacity: 1; }
+  .tip b { font-family: var(--mono); font-size: 12.5px; letter-spacing: .02em; }
+  .tip .row { display: flex; justify-content: space-between; gap: 14px; font-variant-numeric: tabular-nums; }
+  .tip .row span:first-child { opacity: .68; }
+  .tip .nm { opacity: .68; display: block; margin-bottom: 4px; }
+
+  /* ---------- table ---------- */
+  .tbl-scroll { overflow-x: auto; border-top: 1px solid var(--rule); }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; min-width: 720px; }
+  thead th {
+    position: sticky; top: 0; background: var(--surface-2);
+    text-align: left; font-weight: 600; font-size: 11px; letter-spacing: .07em;
+    text-transform: uppercase; color: var(--ink-muted);
+    padding: 9px 14px; border-bottom: 1px solid var(--rule); white-space: nowrap;
+  }
+  thead th.num { text-align: right; }
+  thead th button {
+    all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;
+    letter-spacing: inherit;
+  }
+  thead th button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  thead th .arrow { opacity: 0; font-size: 9px; }
+  thead th[aria-sort] .arrow { opacity: 1; color: var(--ink-2); }
+  tbody td { padding: 8px 14px; border-bottom: 1px solid var(--rule); vertical-align: middle; }
+  tbody tr:last-child td { border-bottom: 0; }
+  tbody tr:hover td { background: var(--surface-2); }
+  td.num { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  td.tick { font-family: var(--mono); font-weight: 600; letter-spacing: .02em; }
+  td.nm { color: var(--ink-2); max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  td.rk { font-family: var(--mono); color: var(--ink-muted); font-size: 12px; width: 38px; }
+
+  .rsi-cell { display: flex; align-items: center; gap: 10px; justify-content: flex-end; }
+  .rsi-bar { position: relative; width: 108px; height: 7px; background: var(--surface-2); border-radius: 3px; box-shadow: inset 0 0 0 1px var(--rule); flex: none; }
+  .rsi-bar i { position: absolute; top: 0; bottom: 0; left: 0; border-radius: 3px 4px 4px 3px; }
+  .rsi-bar i.cool { background: var(--pole-cool); }
+  .rsi-bar i.warm { background: var(--pole-warm); }
+  .rsi-bar i.neut { background: var(--mid); }
+  .rsi-val { font-family: var(--mono); font-variant-numeric: tabular-nums; width: 46px; text-align: right; }
+
+  .chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 11.5px; font-family: var(--mono); letter-spacing: .02em;
+    padding: 2px 8px; border-radius: 20px; white-space: nowrap;
+    border: 1px solid var(--ring); color: var(--ink-2); background: var(--surface-2);
+  }
+  .chip .g { font-size: 9px; line-height: 1; opacity: .85; }
+  .band-tag { font-family: var(--mono); font-size: 11px; color: var(--ink-muted); }
+
+  /* ---------- provenance ---------- */
+  .prov { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .pre-wrap { background: var(--surface); border: 1px solid var(--ring); border-radius: 12px; box-shadow: var(--shadow); overflow: hidden; }
+  .pre-wrap h3 {
+    margin: 0; padding: 12px 16px 10px; font-size: 11px; letter-spacing: .09em;
+    text-transform: uppercase; color: var(--ink-muted); font-family: var(--mono); font-weight: 500;
+    border-bottom: 1px solid var(--rule);
+  }
+  pre {
+    margin: 0; padding: 14px 16px; overflow-x: auto;
+    font-family: var(--mono); font-size: 12px; line-height: 1.65; color: var(--ink-2);
+    white-space: pre; tab-size: 2;
+  }
+  pre .hl { color: var(--ink); font-weight: 600; }
+  pre .acc { color: var(--accent); }
+  pre .cm { color: var(--ink-muted); }
+
+  footer.note {
+    font-size: 12.5px; color: var(--ink-muted); line-height: 1.6;
+    border-top: 1px solid var(--rule); padding-top: 14px; max-width: 88ch;
+  }
+  footer.note b { color: var(--ink-2); font-weight: 600; }
+
+  @media (max-width: 860px) {
+    .tiles { grid-template-columns: repeat(2, minmax(0,1fr)); }
+    .prov { grid-template-columns: 1fr; }
+    .asof { text-align: left; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .board *, .board *::before { transition: none !important; }
+  }
+  @media (forced-colors: active) {
+    .pt, .rsi-bar i { forced-color-adjust: none; }
+  }
+</style>
+
+<div class="board">
+<div class="wrap">
+
+  <header class="masthead">
+    <div>
+      <p class="eyebrow"><span class="dot-live"></span>viaNexus &middot; CORE / STOCK_STATS_US</p>
+      <h1>RSI&#8209;14, <span class="thin">in the same record as the moving averages</span></h1>
+      <p class="standfirst">Sixty US names, ranked by 14-day relative strength. Every number on this page came back from a single request. No price history to pull, no smoothing to implement, nothing new to subscribe to.</p>
+    </div>
+    <div class="asof">
+      as of <b>2026-08-04</b><br>
+      1 request &middot; <b>60</b> symbols<br>
+      27.8 KB &middot; <b>1.29 s</b>
+    </div>
+  </header>
+
+  <div class="tiles" id="tiles"></div>
+
+  <section class="card">
+    <div class="card-head">
+      <div>
+        <h2>Where the universe sits on the oscillator</h2>
+        <p>Each dot is one symbol at its RSI-14 reading. Dots stack where readings cluster, so the shape is the distribution. Hover any dot for its levels.</p>
+      </div>
+      <div class="legend">
+        <span><i class="swatch" style="background:var(--pole-cool)"></i>Oversold &lt; 30</span>
+        <span><i class="swatch" style="background:var(--mid)"></i>Neutral 30&ndash;70</span>
+        <span><i class="swatch" style="background:var(--pole-warm)"></i>Overbought &gt; 70</span>
+      </div>
+    </div>
+    <div class="rail-scroll">
+      <div class="rail">
+        <div class="plot" id="plot">
+          <div class="zone cool" style="left:0;width:30%"></div>
+          <div class="zone warm" style="left:70%;right:0"></div>
+          <div class="rule-v mid" style="left:50%"></div>
+          <div class="rule-v" style="left:30%"></div>
+          <div class="rule-v" style="left:70%"></div>
+          <div class="rule-tag" style="left:30%">oversold 30</div>
+          <div class="rule-tag" style="left:70%">overbought 70</div>
+          <div class="baseline"></div>
+        </div>
+        <div class="axis-row" id="axis"></div>
+        <div class="tip" id="tip" role="status" aria-live="polite"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-head">
+      <div>
+        <h2>The full read</h2>
+        <p>Sorted weakest to strongest. The 50-day and 200-day averages ship in the same record, so momentum and trend line up without a second call.</p>
+      </div>
+      <span class="band-tag" id="count"></span>
+    </div>
+    <div class="tbl-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th class="rk">#</th>
+            <th><button type="button" data-sort="symbol">Ticker<span class="arrow">&#9650;</span></button></th>
+            <th>Company</th>
+            <th class="num"><button type="button" data-sort="rsi14">RSI-14<span class="arrow">&#9650;</span></button></th>
+            <th class="num"><button type="button" data-sort="ma50">50-day avg<span class="arrow">&#9650;</span></button></th>
+            <th class="num"><button type="button" data-sort="ma200">200-day avg<span class="arrow">&#9650;</span></button></th>
+            <th>Trend</th>
+          </tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="prov">
+    <div class="pre-wrap">
+      <h3>The call behind this page</h3>
+<pre><span class="cm"># one request, sixty symbols</span>
+curl <span class="acc">"https://api.blueskyapi.com/v1/data/\
+CORE/STOCK_STATS_US/aapl,msft,nvda,&hellip;,gme\
+?token=$TOKEN"</span></pre>
+    </div>
+    <div class="pre-wrap">
+      <h3>One record, unedited</h3>
+<pre>{
+  "symbol": "AAPL",
+  "date": "2026-08-04",
+  <span class="hl">"rsi14": 39.04,</span>
+  "day50MovingAverage": 309.52,
+  "day200MovingAverage": 278.24,
+  "52weekHigh": 344.57,
+  "52weekLow": 202.16,
+  "epsTtm": 8.71,
+  "peRatioTtm": 35.19,
+  "beta": 1.09
+}</pre>
+    </div>
+  </div>
+
+  <footer class="note">
+    <b>How it is calculated.</b> Wilder&rsquo;s RSI over 14 trading days, on split-adjusted closes, refreshed with the rest of the stats each session.
+    <b>Nulls.</b> Symbols with fewer than 15 trading days of history return null rather than a made-up number.
+    <b>Not advice.</b> RSI is one momentum reading on one day. Nothing here is a recommendation to buy or sell anything.
+  </footer>
+
+</div>
+</div>
+
+<script>
+const DATA = [{"symbol":"GME","name":"Gamestop Corporation","rsi14":28.2,"ma50":21.78,"ma200":22.63},{"symbol":"QCOM","name":"Qualcomm, Inc.","rsi14":30.39,"ma50":197.49,"ma200":168.96},{"symbol":"TSLA","name":"Tesla Inc","rsi14":36.27,"ma50":388.86,"ma200":411.06},{"symbol":"AAPL","name":"Apple Inc","rsi14":39.04,"ma50":309.52,"ma200":278.24},{"symbol":"CAT","name":"Caterpillar Inc.","rsi14":39.72,"ma50":919.23,"ma200":739.63},{"symbol":"COIN","name":"Coinbase Global Inc","rsi14":40.31,"ma50":163.45,"ma200":211.46},{"symbol":"LLY","name":"Lilly(Eli) & Co","rsi14":41.52,"ma50":1149.37,"ma200":1026.34},{"symbol":"INTC","name":"Intel Corp.","rsi14":41.63,"ma50":112.25,"ma200":67.31},{"symbol":"IBM","name":"International Business Machines Corp.","rsi14":41.97,"ma50":263.84,"ma200":248.62},{"symbol":"MU","name":"Micron Technology Inc.","rsi14":43.09,"ma50":966.8,"ma200":521.31},{"symbol":"MCD","name":"McDonald`s Corp","rsi14":43.89,"ma50":274.58,"ma200":300.31},{"symbol":"PLTR","name":"Palantir Technologies Inc","rsi14":45.22,"ma50":130.49,"ma200":152.62},{"symbol":"PG","name":"Procter & Gamble Co.","rsi14":45.53,"ma50":147.38,"ma200":148.03},{"symbol":"SHOP","name":"Shopify Inc","rsi14":45.71,"ma50":116.31,"ma200":132.98},{"symbol":"WMT","name":"Walmart Inc","rsi14":45.8,"ma50":115.23,"ma200":120.82},{"symbol":"GS","name":"Goldman Sachs Group, Inc.","rsi14":45.81,"ma50":1050.28,"ma200":917.76},{"symbol":"AMD","name":"Advanced Micro Devices Inc.","rsi14":45.96,"ma50":512.95,"ma200":313.16},{"symbol":"TSM","name":"Taiwan Semiconductor Manufacturing","rsi14":46.03,"ma50":425.42,"ma200":357.84},{"symbol":"META","name":"Meta Platforms Inc","rsi14":46.98,"ma50":601.89,"ma200":633.9},{"symbol":"F","name":"Ford Motor Co.","rsi14":47.94,"ma50":14.55,"ma200":13.36},{"symbol":"SPOT","name":"Spotify Technology S.A.","rsi14":48.14,"ma50":486.55,"ma200":522.78},{"symbol":"AVGO","name":"Broadcom Inc","rsi14":48.69,"ma50":394.8,"ma200":366.19},{"symbol":"UNH","name":"Unitedhealth Group Inc","rsi14":48.73,"ma50":410.81,"ma200":344.97},{"symbol":"ORCL","name":"Oracle Corp.","rsi14":48.9,"ma50":163.99,"ma200":182.34},{"symbol":"NKE","name":"Nike, Inc.","rsi14":49.37,"ma50":43.51,"ma200":54.44},{"symbol":"CSCO","name":"Cisco Systems, Inc.","rsi14":49.63,"ma50":117.7,"ma200":89.75},{"symbol":"NFLX","name":"Netflix Inc.","rsi14":49.7,"ma50":76.82,"ma200":91.06},{"symbol":"SBUX","name":"Starbucks Corp.","rsi14":49.86,"ma50":102.28,"ma200":95},{"symbol":"PEP","name":"PepsiCo Inc","rsi14":50.49,"ma50":141.32,"ma200":149.69},{"symbol":"UBER","name":"Uber Technologies Inc","rsi14":50.64,"ma50":71.76,"ma200":78.46},{"symbol":"DE","name":"Deere & Co.","rsi14":50.64,"ma50":589.77,"ma200":548.63},{"symbol":"JNJ","name":"Johnson & Johnson","rsi14":51.28,"ma50":245.7,"ma200":226.75},{"symbol":"NVDA","name":"NVIDIA Corp","rsi14":51.8,"ma50":205.84,"ma200":193.25},{"symbol":"DIS","name":"Walt Disney Co (The)","rsi14":51.94,"ma50":99.03,"ma200":104.63},{"symbol":"MRK","name":"Merck & Co Inc","rsi14":52.81,"ma50":123.15,"ma200":111.8},{"symbol":"PFE","name":"Pfizer Inc.","rsi14":53.13,"ma50":25.07,"ma200":25.83},{"symbol":"COST","name":"Costco Wholesale Corp","rsi14":53.74,"ma50":957.43,"ma200":957.92},{"symbol":"HD","name":"Home Depot, Inc.","rsi14":53.81,"ma50":331.56,"ma200":348.89},{"symbol":"NOW","name":"ServiceNow Inc","rsi14":56.09,"ma50":105.84,"ma200":124.58},{"symbol":"T","name":"AT&T, Inc.","rsi14":57.71,"ma50":28.13,"ma200":26.16},{"symbol":"ADBE","name":"Adobe Inc","rsi14":58.14,"ma50":228.3,"ma200":276.02},{"symbol":"CRM","name":"Salesforce Inc","rsi14":58.41,"ma50":171.14,"ma200":204.78},{"symbol":"ABNB","name":"Airbnb Inc","rsi14":58.43,"ma50":141.49,"ma200":132.69},{"symbol":"CVX","name":"Chevron Corp.","rsi14":59.75,"ma50":182.79,"ma200":175.58},{"symbol":"KO","name":"Coca-Cola Co","rsi14":59.97,"ma50":82.12,"ma200":76.18},{"symbol":"VZ","name":"Verizon Communications Inc","rsi14":60.07,"ma50":45.46,"ma200":44.66},{"symbol":"GE","name":"GE Aerospace","rsi14":60.98,"ma50":346.54,"ma200":315.43},{"symbol":"GOOGL","name":"Alphabet Inc","rsi14":61.45,"ma50":358.43,"ma200":326.91},{"symbol":"BA","name":"Boeing Co.","rsi14":62.13,"ma50":219.13,"ma200":218.47},{"symbol":"JPM","name":"JPMorgan Chase & Co.","rsi14":62.51,"ma50":328.7,"ma200":312.11},{"symbol":"V","name":"Visa Inc","rsi14":63.37,"ma50":341.14,"ma200":330.39},{"symbol":"GM","name":"General Motors Company","rsi14":63.87,"ma50":80.73,"ma200":77.55},{"symbol":"BAC","name":"Bank Of America Corp.","rsi14":65.87,"ma50":57.47,"ma200":53.63},{"symbol":"MA","name":"Mastercard Incorporated","rsi14":68.46,"ma50":515.59,"ma200":527.96},{"symbol":"LMT","name":"Lockheed Martin Corp.","rsi14":69.19,"ma50":529.96,"ma200":545.49},{"symbol":"XOM","name":"ExxonMobil Holdings Corp.","rsi14":71.65,"ma50":148.73,"ma200":148.73},{"symbol":"AMZN","name":"Amazon.com Inc.","rsi14":71.66,"ma50":247.01,"ma200":235.35},{"symbol":"RTX","name":"RTX Corp","rsi14":72.25,"ma50":191.28,"ma200":188.14},{"symbol":"PYPL","name":"PayPal Holdings Inc","rsi14":72.65,"ma50":47.32,"ma200":52.08},{"symbol":"MSFT","name":"Microsoft Corporation","rsi14":76.84,"ma50":400.74,"ma200":433.45}];
+
+const bandOf = v => v < 30 ? "cool" : v > 70 ? "warm" : "neut";
+const BAND_LABEL = { cool: "Oversold", neut: "Neutral", warm: "Overbought" };
+const fmt = n => n == null ? "&ndash;" : n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+let filter = "all";
+let sortKey = "rsi14";
+let sortDir = 1;
+
+/* ---- tiles ---- */
+const counts = { cool: 0, neut: 0, warm: 0 };
+DATA.forEach(d => counts[bandOf(d.rsi14)]++);
+
+const TILES = [
+  { id: "all",  cls: "all",  k: "Universe scanned", v: DATA.length, s: "US listings, one request" },
+  { id: "cool", cls: "cool", k: "Oversold  RSI &lt; 30", v: counts.cool, s: "buyers exhausted the sellers" },
+  { id: "neut", cls: "neut", k: "Neutral  30 to 70", v: counts.neut, s: "no momentum signal today" },
+  { id: "warm", cls: "warm", k: "Overbought  RSI &gt; 70", v: counts.warm, s: "extended after a run" },
+];
+
+const tilesEl = document.getElementById("tiles");
+tilesEl.innerHTML = TILES.map(t =>
+  `<button type="button" class="tile ${t.cls}" data-band="${t.id}" aria-pressed="${t.id === "all"}">
+     <span class="k">${t.k}</span><span class="v">${t.v}</span><span class="s">${t.s}</span>
+   </button>`).join("");
+tilesEl.addEventListener("click", e => {
+  const b = e.target.closest(".tile");
+  if (!b) return;
+  filter = b.dataset.band;
+  [...tilesEl.children].forEach(c => c.setAttribute("aria-pressed", c.dataset.band === filter));
+  render();
+});
+
+/* ---- axis ---- */
+document.getElementById("axis").innerHTML =
+  [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
+    .map(v => `<span style="left:${v}%">${v}</span>`).join("");
+
+/* ---- beeswarm: stack upward from the baseline where readings collide ---- */
+const plot = document.getElementById("plot");
+const tip = document.getElementById("tip");
+const PIN = new Set(["GME", "MSFT"]);
+
+function layout() {
+  plot.querySelectorAll(".pt, .pin").forEach(n => n.remove());
+  const w = plot.clientWidth || 900;
+  const dot = 11, gapY = 2, minGapX = dot + 2;
+  const sorted = [...DATA].sort((a, b) => a.rsi14 - b.rsi14);
+  const lanes = [];                       // lanes[i] = rightmost x used in that lane
+  sorted.forEach(d => {
+    const x = (d.rsi14 / 100) * w;
+    let lane = 0;
+    while (lanes[lane] != null && x - lanes[lane] < minGapX) lane++;
+    lanes[lane] = x;
+    d._x = x; d._lane = lane;
+  });
+  const band = d => bandOf(d.rsi14);
+  sorted.forEach(d => {
+    const el = document.createElement("button");
+    el.type = "button";
+    el.className = `pt ${band(d)}`;
+    el.style.left = `${(d.rsi14 / 100) * 100}%`;
+    el.style.bottom = `${4 + d._lane * (dot + gapY)}px`;
+    el.setAttribute("aria-label", `${d.symbol}, RSI ${d.rsi14}, ${BAND_LABEL[band(d)]}`);
+    el.dataset.symbol = d.symbol;
+    const show = () => {
+      tip.innerHTML =
+        `<b>${d.symbol}</b><span class="nm">${d.name}</span>
+         <div class="row"><span>RSI-14</span><span>${fmt(d.rsi14)}</span></div>
+         <div class="row"><span>50-day</span><span>${fmt(d.ma50)}</span></div>
+         <div class="row"><span>200-day</span><span>${fmt(d.ma200)}</span></div>`;
+      tip.classList.add("on");
+      tip.style.left = `${20 + d._x}px`;
+      tip.style.top = `${plot.clientHeight - (4 + d._lane * (dot + gapY)) - 6}px`;
+    };
+    const hide = () => tip.classList.remove("on");
+    el.addEventListener("mouseenter", show);
+    el.addEventListener("focus", show);
+    el.addEventListener("mouseleave", hide);
+    el.addEventListener("blur", hide);
+    plot.appendChild(el);
+
+    if (PIN.has(d.symbol)) {
+      const p = document.createElement("div");
+      p.className = "pin";
+      p.style.left = `${(d.rsi14 / 100) * 100}%`;
+      p.style.bottom = `${4 + d._lane * (dot + gapY) + dot + 5}px`;
+      p.innerHTML = `${d.rsi14.toFixed(1)}<em>${d.symbol}</em>`;
+      plot.appendChild(p);
+    }
+  });
+  dimPoints();
+}
+
+function dimPoints() {
+  plot.querySelectorAll(".pt").forEach(el => {
+    const d = DATA.find(x => x.symbol === el.dataset.symbol);
+    el.classList.toggle("dim", filter !== "all" && bandOf(d.rsi14) !== filter);
+  });
+}
+
+/* ---- table ---- */
+const rowsEl = document.getElementById("rows");
+const countEl = document.getElementById("count");
+
+function render() {
+  const shown = DATA
+    .filter(d => filter === "all" || bandOf(d.rsi14) === filter)
+    .sort((a, b) => {
+      const x = a[sortKey], y = b[sortKey];
+      return (typeof x === "string" ? x.localeCompare(y) : x - y) * sortDir;
+    });
+
+  rowsEl.innerHTML = shown.map((d, i) => {
+    const b = bandOf(d.rsi14);
+    const up = d.ma50 >= d.ma200;
+    return `<tr>
+      <td class="rk">${i + 1}</td>
+      <td class="tick">${d.symbol}</td>
+      <td class="nm" title="${d.name}">${d.name}</td>
+      <td class="num"><div class="rsi-cell">
+        <span class="rsi-bar"><i class="${b}" style="width:${d.rsi14}%"></i></span>
+        <span class="rsi-val">${fmt(d.rsi14)}</span>
+      </div></td>
+      <td class="num">${fmt(d.ma50)}</td>
+      <td class="num">${fmt(d.ma200)}</td>
+      <td><span class="chip"><i class="g">${up ? "▲" : "▼"}</i>${up ? "50d above 200d" : "50d below 200d"}</span></td>
+    </tr>`;
+  }).join("");
+
+  countEl.textContent = filter === "all"
+    ? `${shown.length} of ${DATA.length} symbols`
+    : `${BAND_LABEL[filter]} · ${shown.length} of ${DATA.length} symbols`;
+
+  document.querySelectorAll("thead th").forEach(th => {
+    const btn = th.querySelector("button");
+    if (!btn) return;
+    if (btn.dataset.sort === sortKey) {
+      th.setAttribute("aria-sort", sortDir === 1 ? "ascending" : "descending");
+      th.querySelector(".arrow").textContent = sortDir === 1 ? "▲" : "▼";
+    } else {
+      th.removeAttribute("aria-sort");
+    }
+  });
+  dimPoints();
+}
+
+document.querySelectorAll("thead button[data-sort]").forEach(btn => {
+  btn.addEventListener("click", () => {
+    const k = btn.dataset.sort;
+    sortDir = sortKey === k ? -sortDir : 1;
+    sortKey = k;
+    render();
+  });
+});
+
+layout();
+render();
+let t;
+addEventListener("resize", () => { clearTimeout(t); t = setTimeout(layout, 120); });
+</script>

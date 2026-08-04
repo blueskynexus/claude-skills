@@ -15,6 +15,7 @@ Downloadable Claude skill packs powered by the [viaNexus MCP server](https://via
 | [**transcript-analysis**](./transcript-analysis) | Earnings call + corporate event breakdown — management quotes, guidance, analyst Q&A, tone. | viaNexus Aiera (`events_calendar`, `historical_events_transcripts`) |
 | [**portfolio-monitor**](./portfolio-monitor) | Daily portfolio brief combining quotes, alerts, and news for user-supplied holdings. | viaNexus (`quote`, `advanced_dividends`, `advanced_splits`) + MT Newswires |
 | [**live-market-dashboard**](./live-market-dashboard) | Claude builds you a self-updating, single-file HTML dashboard for any watchlist — live quotes, sparklines, news, call log. No backend, no build step. | viaNexus (`quote`, `historical_prices`, `news`) via MCP at build time + REST API at run time |
+| [**rsi-screener**](./rsi-screener) | Claude builds you a single-file HTML momentum board ranking a watchlist by RSI-14, with the whole universe plotted on one oscillator axis. One call, static snapshot, no token in the file. | viaNexus (`stock_stats_us`) |
 
 ---
 
@@ -64,6 +65,7 @@ Just ask Claude a question that matches the skill. Each skill has a `description
 | transcript-analysis | "Summarize AAPL's last earnings call" · "What did Nvidia say about AI demand?" |
 | portfolio-monitor | "How's my portfolio today? AAPL 100, MSFT 50, NVDA 25" · "Any movers in my holdings?" |
 | live-market-dashboard | "Build me a live dashboard for AAPL NVDA TSM SPY" · "Make a market monitor that refreshes itself" |
+| rsi-screener | "Which of my holdings are overbought?" · "Build an RSI screen for AAPL MSFT NVDA TSLA" · "Show me what's oversold right now" |
 
 ---
 
