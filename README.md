@@ -16,6 +16,7 @@ Downloadable Claude skill packs powered by the [viaNexus MCP server](https://via
 | [**portfolio-monitor**](./portfolio-monitor) | Daily portfolio brief combining quotes, alerts, and news for user-supplied holdings. | viaNexus (`quote`, `advanced_dividends`, `advanced_splits`) + MT Newswires |
 | [**live-market-dashboard**](./live-market-dashboard) | Claude builds you a self-updating, single-file HTML dashboard for any watchlist — live quotes, sparklines, news, call log. No backend, no build step. | viaNexus (`quote`, `historical_prices`, `news`) via MCP at build time + REST API at run time |
 | [**rsi-screener**](./rsi-screener) | Claude builds you a single-file HTML momentum board ranking a watchlist by RSI-14, with the whole universe plotted on one oscillator axis. One call, static snapshot, no token in the file. | viaNexus (`stock_stats_us`) |
+| [**earnings-calendar**](./earnings-calendar) | Claude builds you a single-file HTML earnings calendar — a real month grid colour-coded by pre-market vs post-market release. Static snapshot, or a live page that fetches with your own token. | viaNexus (`earnings_calendar`) |
 
 ---
 

@@ -1,0 +1,435 @@
+<meta charset="utf-8">
+<title>viaNexus Earnings Calendar</title>
+<div class="page">
+
+  <header class="masthead">
+    <div class="masthead-id">
+      <p class="eyebrow">viaNexus &middot; CORE / EARNINGS_CALENDAR</p>
+      <h1>Earnings Calendar</h1>
+      <p class="standfirst">Every upcoming report the dataset currently returns, with the market session each release is expected in.</p>
+    </div>
+    <dl class="vitals">
+      <div><dt>Symbols</dt><dd data-num id="v-symbols">&mdash;</dd></div>
+      <div><dt>Trading days</dt><dd data-num id="v-days">&mdash;</dd></div>
+      <div><dt>Through</dt><dd data-num id="v-through">&mdash;</dd></div>
+      <div><dt>As of</dt><dd data-num id="v-asof">__GENERATED__</dd></div>
+    </dl>
+  </header>
+
+  <section class="loader" id="loader" hidden>
+    <h2>Load live data</h2>
+    <p>Paste a viaNexus <code>pk_</code> or <code>sk_</code> token. It stays in this page and is sent only to <code>api.blueskyapi.com</code>.</p>
+    <div class="loader-row">
+      <label class="sr-only" for="tok">viaNexus token</label>
+      <input id="tok" type="password" placeholder="pk_..." autocomplete="off" spellcheck="false">
+      <button type="button" id="go">Load calendar</button>
+      <span class="loader-status" id="load-status" role="status"></span>
+    </div>
+    <details>
+      <summary>Symbols to fetch (<span id="sym-count">0</span>)</summary>
+      <label class="sr-only" for="syms">Symbol list, one per line or comma separated</label>
+      <textarea id="syms" rows="6" spellcheck="false"></textarea>
+    </details>
+  </section>
+
+  <section class="coverage" id="coverage" aria-labelledby="cov-h" hidden>
+    <h2 id="cov-h">Session coverage</h2>
+    <div class="bar" id="cov-bar">
+      <span class="seg seg-pre"></span>
+      <span class="seg seg-post"></span>
+      <span class="seg seg-unk"></span>
+    </div>
+    <ul class="key">
+      <li><i class="sw sw-pre"></i>Pre-market <b data-num id="k-pre">0</b></li>
+      <li><i class="sw sw-post"></i>Post-market <b data-num id="k-post">0</b></li>
+      <li><i class="sw sw-unk"></i>No session recorded <b data-num id="k-unk">0</b></li>
+    </ul>
+    <p class="note">A session is derived from the acceptance time of a real filing. Predicted dates with no filing behind them carry no session unless one was inherited from a prior confirmed report.</p>
+  </section>
+
+  <div class="controls" id="controls" hidden>
+    <div class="segmented" role="group" aria-label="Filter by market session">
+      <button type="button" class="seg-btn is-on" data-filter="all">All</button>
+      <button type="button" class="seg-btn" data-filter="pre">Pre</button>
+      <button type="button" class="seg-btn" data-filter="post">Post</button>
+      <button type="button" class="seg-btn" data-filter="none">No session</button>
+    </div>
+    <div class="finder">
+      <label class="sr-only" for="q">Find a symbol</label>
+      <input id="q" type="search" placeholder="Find a symbol" autocomplete="off" spellcheck="false">
+      <p class="finder-out" id="q-out" role="status"></p>
+    </div>
+  </div>
+
+  <main id="months"></main>
+
+  <p class="empty" id="empty" hidden>No reports match that filter.</p>
+
+  <footer class="colophon">
+    <p>Source <code>GET /v1/data/CORE/EARNINGS_CALENDAR/{symbol}</code> &middot; api.blueskyapi.com</p>
+    <p>Each symbol resolves to its next expected report.</p>
+  </footer>
+
+</div>
+
+<style>
+__CSS__
+</style>
+
+<script>
+(function () {
+  "use strict";
+
+  var DATA = __DATA__;
+  var SYMBOLS = __SYMBOLS__;
+
+  var API = "https://api.blueskyapi.com/v1/data/CORE/EARNINGS_CALENDAR/";
+  var POOL = 10;
+
+  var MONTHS = ["January","February","March","April","May","June",
+                "July","August","September","October","November","December"];
+  var BUSY = 12;
+
+  var host    = document.getElementById("months");
+  var empty   = document.getElementById("empty");
+  var search  = document.getElementById("q");
+  var readout = document.getElementById("q-out");
+  var loader  = document.getElementById("loader");
+
+  var filter = "all";
+  var query  = "";
+
+  function sessionClass(s) {
+    return s === "pre" ? "s-pre" : s === "post" ? "s-post" : "s-unk";
+  }
+
+  function sessionLabel(s) {
+    return s === "pre" ? "pre-market" : s === "post" ? "post-market" : "session not recorded";
+  }
+
+  function isEmpty(obj) {
+    for (var k in obj) { if (Object.prototype.hasOwnProperty.call(obj, k)) return false; }
+    return true;
+  }
+
+  function monthKeys() {
+    var seen = {};
+    Object.keys(DATA).forEach(function (d) { seen[d.slice(0, 7)] = true; });
+    return Object.keys(seen).sort();
+  }
+
+  // Mon-Fri only: earnings are not released on weekends, so rendering two
+  // permanently empty columns would misstate how dense a week actually is.
+  function weekdaysOf(year, month) {
+    var out = [];
+    var cursor = new Date(Date.UTC(year, month, 1));
+    while (cursor.getUTCMonth() === month) {
+      var dow = cursor.getUTCDay();
+      if (dow >= 1 && dow <= 5) {
+        out.push({
+          day: cursor.getUTCDate(),
+          col: dow - 1,
+          key: year + "-" + String(month + 1).padStart(2, "0") +
+               "-" + String(cursor.getUTCDate()).padStart(2, "0")
+        });
+      }
+      cursor.setUTCDate(cursor.getUTCDate() + 1);
+    }
+    return out;
+  }
+
+  function rowsFor(key) {
+    var rows = DATA[key] || [];
+    if (filter === "all") return rows;
+    if (filter === "none") return rows.filter(function (r) { return !r[1]; });
+    return rows.filter(function (r) { return r[1] === filter; });
+  }
+
+  function blankCell() {
+    var el = document.createElement("div");
+    el.className = "day is-blank";
+    el.setAttribute("aria-hidden", "true");
+    return el;
+  }
+
+  function dayCell(slot, rows) {
+    var cell = document.createElement("div");
+    cell.className = "day" + (rows.length === 0 ? " is-quiet" : rows.length >= BUSY ? " is-busy" : "");
+
+    var head = document.createElement("div");
+    head.className = "day-head";
+
+    var num = document.createElement("span");
+    num.className = "day-num";
+    num.textContent = slot.day;
+    head.appendChild(num);
+
+    if (rows.length) {
+      var count = document.createElement("span");
+      count.className = "day-count";
+      count.textContent = rows.length;
+      head.appendChild(count);
+    }
+    cell.appendChild(head);
+
+    if (rows.length) {
+      var list = document.createElement("div");
+      list.className = "syms";
+      rows.forEach(function (r) {
+        var tag = document.createElement("span");
+        tag.className = "sym " + sessionClass(r[1]);
+        tag.textContent = r[0];
+        tag.title = r[0] + " " + slot.key + ", " + sessionLabel(r[1]);
+        if (query) {
+          tag.classList.add(r[0].indexOf(query) === 0 ? "is-hit" : "is-miss");
+        }
+        list.appendChild(tag);
+      });
+      cell.appendChild(list);
+    }
+    return cell;
+  }
+
+  function updateVitals() {
+    var dates = Object.keys(DATA).sort();
+    var counts = { pre: 0, post: 0, none: 0 };
+    var total = 0;
+
+    dates.forEach(function (d) {
+      DATA[d].forEach(function (r) {
+        total++;
+        counts[r[1] === "pre" || r[1] === "post" ? r[1] : "none"]++;
+      });
+    });
+
+    document.getElementById("v-symbols").textContent = total || "\u2014";
+    document.getElementById("v-days").textContent    = dates.length || "\u2014";
+    document.getElementById("v-through").textContent = dates.length ? dates[dates.length - 1] : "\u2014";
+
+    document.getElementById("k-pre").textContent  = counts.pre;
+    document.getElementById("k-post").textContent = counts.post;
+    document.getElementById("k-unk").textContent  = counts.none;
+
+    var bar = document.getElementById("cov-bar");
+    bar.children[0].style.flex = counts.pre;
+    bar.children[1].style.flex = counts.post;
+    bar.children[2].style.flex = counts.none;
+    bar.setAttribute("role", "img");
+    bar.setAttribute("aria-label",
+      counts.pre + " pre-market, " + counts.post + " post-market, " +
+      counts.none + " with no session recorded");
+
+    var populated = total > 0;
+    document.getElementById("coverage").hidden = !populated;
+    document.getElementById("controls").hidden = !populated;
+  }
+
+  function render() {
+    host.textContent = "";
+    var shown = 0;
+    var hits = 0;
+
+    monthKeys().forEach(function (mk) {
+      var year  = Number(mk.slice(0, 4));
+      var month = Number(mk.slice(5, 7)) - 1;
+      var slots = weekdaysOf(year, month);
+
+      var counted = slots.reduce(function (n, s) { return n + rowsFor(s.key).length; }, 0);
+      if (counted === 0) return;
+      shown += counted;
+
+      var section = document.createElement("section");
+      section.className = "month";
+
+      var head = document.createElement("div");
+      head.className = "month-head";
+      var h2 = document.createElement("h2");
+      h2.textContent = MONTHS[month] + " " + year;
+      var tally = document.createElement("span");
+      tally.textContent = counted + (counted === 1 ? " report" : " reports");
+      head.appendChild(h2);
+      head.appendChild(tally);
+      section.appendChild(head);
+
+      var labels = document.createElement("div");
+      labels.className = "week-head";
+      ["Mon", "Tue", "Wed", "Thu", "Fri"].forEach(function (name) {
+        var s = document.createElement("span");
+        s.textContent = name;
+        labels.appendChild(s);
+      });
+      section.appendChild(labels);
+
+      var built = [];
+      var row = null;
+      var expected = 0;
+
+      slots.forEach(function (slot, i) {
+        if (i === 0 || slot.col === 0) {
+          row = document.createElement("div");
+          row.className = "week";
+          built.push({ el: row, count: 0 });
+          expected = i === 0 ? slot.col : 0;
+          while (expected < slot.col) { row.appendChild(blankCell()); expected++; }
+        }
+        var rows = rowsFor(slot.key);
+        if (query) {
+          hits += rows.filter(function (r) { return r[0].indexOf(query) === 0; }).length;
+        }
+        built[built.length - 1].count += rows.length;
+        row.appendChild(dayCell(slot, rows));
+        expected = slot.col + 1;
+      });
+
+      while (expected > 0 && expected < 5) { row.appendChild(blankCell()); expected++; }
+
+      // A week with nothing in it is only meaningful between two active weeks —
+      // a genuine lull in the season. Leading and trailing empties are just the
+      // edges of the window, so trim them.
+      while (built.length && built[0].count === 0) { built.shift(); }
+      while (built.length && built[built.length - 1].count === 0) { built.pop(); }
+
+      var weeks = document.createElement("div");
+      weeks.className = "weeks";
+      built.forEach(function (w) { weeks.appendChild(w.el); });
+
+      section.appendChild(weeks);
+      host.appendChild(section);
+    });
+
+    empty.hidden = shown > 0 || isEmpty(DATA);
+
+    if (!query) {
+      readout.textContent = "";
+    } else if (hits === 0) {
+      readout.textContent = "no match";
+    } else {
+      readout.textContent = hits + (hits === 1 ? " match" : " matches");
+    }
+  }
+
+  /* ---- live fetch ---- */
+
+  function parseSymbols(text) {
+    var seen = {};
+    return text.split(/[\s,]+/)
+      .map(function (s) { return s.trim().toUpperCase(); })
+      .filter(function (s) {
+        if (!s || seen[s]) return false;
+        seen[s] = true;
+        return true;
+      });
+  }
+
+  function fetchOne(symbol, token) {
+    return fetch(API + encodeURIComponent(symbol) + "?token=" + encodeURIComponent(token))
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (body) {
+        if (!body) return null;
+        var rows = Array.isArray(body) ? body : [body];
+        var row = rows[0];
+        if (!row || !row.earningsDate) return null;
+        return { symbol: symbol, date: row.earningsDate, session: row.marketSession || null };
+      })
+      .catch(function () { return null; });
+  }
+
+  function runPool(symbols, token, onProgress) {
+    var results = [];
+    var next = 0;
+    var done = 0;
+
+    function worker() {
+      if (next >= symbols.length) return Promise.resolve();
+      var symbol = symbols[next++];
+      return fetchOne(symbol, token).then(function (rec) {
+        if (rec) results.push(rec);
+        onProgress(++done, symbols.length);
+        return worker();
+      });
+    }
+
+    var workers = [];
+    for (var i = 0; i < Math.min(POOL, symbols.length); i++) { workers.push(worker()); }
+    return Promise.all(workers).then(function () { return results; });
+  }
+
+  function groupByDate(records) {
+    var today = new Date().toISOString().slice(0, 10);
+    var out = {};
+    records.forEach(function (r) {
+      if (r.date < today) return;
+      (out[r.date] = out[r.date] || []).push([r.symbol, r.session]);
+    });
+    Object.keys(out).forEach(function (d) {
+      out[d].sort(function (a, b) { return a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0; });
+    });
+    return out;
+  }
+
+  function load() {
+    var token = document.getElementById("tok").value.trim();
+    var status = document.getElementById("load-status");
+    var button = document.getElementById("go");
+
+    if (!token) { status.textContent = "Paste a token first."; return; }
+
+    var symbols = parseSymbols(document.getElementById("syms").value);
+    if (!symbols.length) { status.textContent = "No symbols to fetch."; return; }
+
+    button.disabled = true;
+    status.textContent = "Fetching 0 of " + symbols.length + "...";
+
+    runPool(symbols, token, function (done, total) {
+      status.textContent = "Fetching " + done + " of " + total + "...";
+    }).then(function (records) {
+      button.disabled = false;
+      if (!records.length) {
+        status.textContent = "No records came back. Check the token has access to CORE.";
+        return;
+      }
+      DATA = groupByDate(records);
+      var stranded = records.length - Object.keys(DATA).reduce(function (n, d) { return n + DATA[d].length; }, 0);
+      status.textContent = records.length + " records" +
+        (stranded ? ", " + stranded + " dated in the past and left out" : "");
+      document.getElementById("v-asof").textContent = new Date().toISOString().slice(0, 10);
+      updateVitals();
+      render();
+    });
+  }
+
+  /* ---- wiring ---- */
+
+  Array.prototype.forEach.call(document.querySelectorAll(".seg-btn"), function (btn) {
+    btn.addEventListener("click", function () {
+      Array.prototype.forEach.call(document.querySelectorAll(".seg-btn"), function (b) {
+        b.classList.remove("is-on");
+      });
+      btn.classList.add("is-on");
+      filter = btn.dataset.filter;
+      render();
+    });
+  });
+
+  search.addEventListener("input", function () {
+    query = search.value.trim().toUpperCase();
+    render();
+  });
+
+  document.getElementById("go").addEventListener("click", load);
+  document.getElementById("tok").addEventListener("keydown", function (e) {
+    if (e.key === "Enter") { load(); }
+  });
+
+  // A page built with a snapshot renders straight away; one built without a
+  // snapshot shows the token bar instead. Same file either way.
+  if (isEmpty(DATA)) {
+    loader.hidden = false;
+    document.getElementById("syms").value = SYMBOLS.join("\n");
+    document.getElementById("sym-count").textContent = SYMBOLS.length;
+  }
+
+  updateVitals();
+  render();
+})();
+</script>
