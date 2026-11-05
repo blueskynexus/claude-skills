@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Election Market Dashboard | viaNexus</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+:root {
+  --bg: #0a0f1a;
+  --surface: #111827;
+  --surface-hover: #1f2937;
+  --border: #1e293b;
+  --text: #e5e7eb;
+  --text-secondary: #9ca3af;
+  --text-muted: #6b7280;
+  --accent: #3b82f6;
+  --positive: #10b981;
+  --negative: #ef4444;
+  --chart-line: #3b82f6;
+  --chart-fill: rgba(59, 130, 246, 0.08);
+  --bar-high: #1e40af;
+  --bar-mid: #3b82f6;
+  --bar-low: #93c5fd;
+  --bar-neg: #ef4444;
+  --grid: rgba(255,255,255,0.06);
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #f5f7fa; --surface: #ffffff; --surface-hover: #f0f2f5;
+    --border: #e2e8f0; --text: #1f2937; --text-secondary: #4b5563;
+    --text-muted: #9ca3af; --chart-fill: rgba(59,130,246,0.06);
+    --grid: rgba(0,0,0,0.06);
+  }
+}
+:root[data-theme="light"] {
+  --bg: #f5f7fa; --surface: #ffffff; --surface-hover: #f0f2f5;
+  --border: #e2e8f0; --text: #1f2937; --text-secondary: #4b5563;
+  --text-muted: #9ca3af; --chart-fill: rgba(59,130,246,0.06);
+  --grid: rgba(0,0,0,0.06);
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  background: var(--bg); color: var(--text); line-height: 1.5;
+  min-height: 100vh;
+}
+.container { max-width: 1280px; margin: 0 auto; padding: 16px; }
+header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 12px 0; margin-bottom: 16px; border-bottom: 1px solid var(--border);
+}
+.logo { font-size: 18px; font-weight: 700; color: var(--accent); }
+.logo span { color: var(--text-muted); font-weight: 400; font-size: 13px; margin-left: 8px; }
+.header-right { display: flex; align-items: center; gap: 12px; }
+.token-input {
+  background: var(--surface); border: 1px solid var(--border); color: var(--text);
+  padding: 6px 12px; border-radius: 6px; font-size: 13px; width: 240px;
+}
+.token-input::placeholder { color: var(--text-muted); }
+.theme-toggle {
+  background: var(--surface); border: 1px solid var(--border); color: var(--text);
+  padding: 6px 10px; border-radius: 6px; cursor: pointer; font-size: 14px;
+}
+h1 { font-size: 24px; font-weight: 700; margin-bottom: 4px; }
+.subtitle { color: var(--text-secondary); font-size: 14px; margin-bottom: 20px; }
+
+/* Metric cards */
+.cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+.card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+  padding: 16px;
+}
+.card-label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+.card-value { font-size: 28px; font-weight: 700; }
+.card-value.positive { color: var(--positive); }
+.card-value.negative { color: var(--negative); }
+.card-context { font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
+
+/* Charts */
+.chart-section {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+  padding: 20px; margin-bottom: 16px;
+}
+.chart-title { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+.chart-subtitle { font-size: 13px; color: var(--text-secondary); margin-bottom: 12px; }
+.chart-wrap { position: relative; width: 100%; }
+.chart-wrap.price { height: 300px; }
+.chart-wrap.bars { height: 280px; }
+.chart-wrap.buildup { height: 240px; }
+.chart-wrap.govt { height: 200px; }
+
+/* Two-column layout */
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+
+/* Stats grid */
+.stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.stat-item {
+  background: var(--surface-hover); border-radius: 8px; padding: 12px;
+  text-align: center;
+}
+.stat-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.stat-value { font-size: 18px; font-weight: 600; margin-top: 2px; }
+
+/* News */
+.news-list { list-style: none; }
+.news-item {
+  padding: 10px 0; border-bottom: 1px solid var(--border);
+  display: flex; gap: 12px; align-items: baseline;
+}
+.news-time { font-size: 12px; color: var(--text-muted); white-space: nowrap; min-width: 60px; }
+.news-headline { font-size: 14px; }
+.news-headline a { color: var(--text); text-decoration: none; }
+.news-headline a:hover { color: var(--accent); }
+
+/* Sources */
+.sources { font-size: 13px; color: var(--text-secondary); line-height: 1.8; }
+.sources a { color: var(--accent); text-decoration: none; }
+.sources a:hover { text-decoration: underline; }
+
+/* Footer */
+footer {
+  margin-top: 24px; padding: 16px 0; border-top: 1px solid var(--border);
+  font-size: 12px; color: var(--text-muted); text-align: center;
+}
+footer a { color: var(--accent); text-decoration: none; }
+
+/* Responsive */
+@media (max-width: 768px) {
+  .cards { grid-template-columns: repeat(2, 1fr); }
+  .two-col { grid-template-columns: 1fr; }
+  .stats-grid { grid-template-columns: repeat(2, 1fr); }
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <div class="logo">viaNexus <span>Election Market Dashboard</span></div>
+    <div class="header-right">
+      <input class="token-input" id="tokenInput" type="text" placeholder="pk_ token for live updates">
+      <button class="theme-toggle" id="themeToggle" title="Toggle theme">&#9681;</button>
+    </div>
+  </header>
+
+  <h1>Markets After Midterms</h1>
+  <p class="subtitle">What 75 years of S&amp;P 500 data say about post-election performance. Current data from viaNexus.</p>
+
+  <!-- Hero cards -->
+  <div class="cards">
+    <div class="card">
+      <div class="card-label">S&amp;P 500 YTD</div>
+      <div class="card-value positive" id="cardYtd">+10.4%</div>
+      <div class="card-context">$683 &rarr; $754 (SPY)</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Post-Midterm Avg (12mo)</div>
+      <div class="card-value positive">+16.9%</div>
+      <div class="card-context">19 for 19 since 1950</div>
+    </div>
+    <div class="card">
+      <div class="card-label">RSI-14</div>
+      <div class="card-value" id="cardRsi">52.3</div>
+      <div class="card-context">Neutral range (30-70)</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Historical Win Rate</div>
+      <div class="card-value positive">100%</div>
+      <div class="card-context">19/19 midterm cycles positive</div>
+    </div>
+  </div>
+
+  <!-- SPY price chart -->
+  <div class="chart-section">
+    <div class="chart-title">SPY Year-to-Date</div>
+    <div class="chart-subtitle">Daily closes from viaNexus HISTORICAL_PRICES. Election day marked.</div>
+    <div class="chart-wrap price"><canvas id="priceChart"></canvas></div>
+  </div>
+
+  <!-- Historical returns + Return buildup -->
+  <div class="two-col">
+    <div class="chart-section">
+      <div class="chart-title">12-Month Return After Each Midterm</div>
+      <div class="chart-subtitle">19 consecutive positive outcomes since 1950. Avg: +16.9%</div>
+      <div class="chart-wrap bars"><canvas id="histReturns"></canvas></div>
+    </div>
+    <div class="chart-section">
+      <div class="chart-title">How Returns Build After Midterms</div>
+      <div class="chart-subtitle">Average cumulative returns at 1, 3, 6, and 12 months</div>
+      <div class="chart-wrap buildup"><canvas id="buildupChart"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Government composition + Stats -->
+  <div class="two-col">
+    <div class="chart-section">
+      <div class="chart-title">Does the Outcome Matter?</div>
+      <div class="chart-subtitle">12-month returns by government composition</div>
+      <div class="chart-wrap govt"><canvas id="govtChart"></canvas></div>
+      <p style="font-size:13px;color:var(--text-secondary);margin-top:12px;">
+        Janus Henderson: annualized returns under divided government (8.73%) vs
+        unified (9.24%) are nearly identical. Markets price in the end of
+        uncertainty, not the winner.
+      </p>
+    </div>
+    <div class="chart-section">
+      <div class="chart-title">Technical Snapshot</div>
+      <div class="chart-subtitle">SPY stats from viaNexus STOCK_STATS_US</div>
+      <div class="stats-grid">
+        <div class="stat-item"><div class="stat-label">RSI-14</div><div class="stat-value" id="statRsi">52.3</div></div>
+        <div class="stat-item"><div class="stat-label">Beta</div><div class="stat-value" id="statBeta">1.00</div></div>
+        <div class="stat-item"><div class="stat-label">50-Day MA</div><div class="stat-value" id="stat50ma">$748</div></div>
+        <div class="stat-item"><div class="stat-label">200-Day MA</div><div class="stat-value" id="stat200ma">$721</div></div>
+        <div class="stat-item"><div class="stat-label">52-Wk High</div><div class="stat-value" id="stat52h">$778</div></div>
+        <div class="stat-item"><div class="stat-label">52-Wk Low</div><div class="stat-value" id="stat52l">$642</div></div>
+        <div class="stat-item"><div class="stat-label">P/E (TTM)</div><div class="stat-value" id="statPe">23.4</div></div>
+        <div class="stat-item"><div class="stat-label">Avg Volume</div><div class="stat-value" id="statVol">68M</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- News -->
+  <div class="chart-section">
+    <div class="chart-title">Market Headlines</div>
+    <div class="chart-subtitle">Recent stories from viaNexus MT Newswires</div>
+    <ul class="news-list" id="newsList">
+      <li class="news-item">
+        <span class="news-time">11:42 AM</span>
+        <span class="news-headline"><a href="#">S&amp;P 500 Opens Higher As Markets Digest Election Results</a></span>
+      </li>
+      <li class="news-item">
+        <span class="news-time">10:15 AM</span>
+        <span class="news-headline"><a href="#">Wall Street Analysts See Post-Midterm Rally Ahead</a></span>
+      </li>
+      <li class="news-item">
+        <span class="news-time">9:31 AM</span>
+        <span class="news-headline"><a href="#">Markets Open: SPY Up 0.4% In Early Trading</a></span>
+      </li>
+    </ul>
+  </div>
+
+  <!-- Sources -->
+  <div class="chart-section">
+    <div class="chart-title">Sources &amp; Citations</div>
+    <div class="sources">
+      <p><strong>Historical election data:</strong></p>
+      <ul style="margin:4px 0 12px 20px;">
+        <li><a href="https://www.cnbc.com/2024/11/02/stock-market-after-midterm-elections-sp-500-history.html">CNBC</a>: S&amp;P 500 after midterm elections history (+13.7% avg since 1982, 11/11 positive)</li>
+        <li><a href="https://get.ycharts.com/resources/blog/midterm-election-market-response/">yCarts</a>: Historical midterm election market response (+16.9% avg since 1950, 19/19 positive)</li>
+        <li><a href="https://www.capitalgroup.com/advisor/insights/articles/midterm-elections-markets-5-charts.html">Capital Group</a>: Midterm elections and markets (pre-election pullback patterns, October bottoms)</li>
+        <li>Janus Henderson: Divided vs unified government annualized returns (8.73% vs 9.24%)</li>
+        <li>Edward Jones / CBS News: Post-election return windows (+1.7% at 1 month, +15.5% at 6 months)</li>
+        <li>Schwab (Sonders / Jones): Post-midterm returns (+5.7% at 3 months, +12.4% at 6 months)</li>
+      </ul>
+      <p><strong>Current market data:</strong></p>
+      <ul style="margin:4px 0 0 20px;">
+        <li>viaNexus <a href="https://console.blueskyapi.com/docs/all/historical-prices/HISTORICAL_PRICES">HISTORICAL_PRICES</a>: SPY daily closes</li>
+        <li>viaNexus <a href="https://console.blueskyapi.com/docs/all/fundamentals/STOCK_STATS_US">STOCK_STATS_US</a>: RSI, beta, moving averages, P/E</li>
+        <li>viaNexus <a href="https://console.blueskyapi.com/docs/all/news/MT_NEWSWIRES_North_America">MT_NEWSWIRES_North_America</a>: Market headlines</li>
+      </ul>
+    </div>
+  </div>
+
+  <footer>
+    <p>Current data powered by <a href="https://vianexus.com/vast">viaNexus</a>. Historical election returns compiled from CNBC, yCarts, Capital Group, and Janus Henderson research.</p>
+    <p style="margin-top:8px;">Past performance does not guarantee future results. This is not investment advice. The 19-for-19 streak can end in any given year.</p>
+    <p style="margin-top:12px;">
+      <a href="https://console.blueskyapi.com/auth/register">Start a free trial</a> &middot;
+      <a href="https://console.blueskyapi.com/catalog">Browse 56 datasets</a> &middot;
+      <a href="https://claude.ai/directory/01c43f47-7757-4ae7-91f2-310eff8bb58d">Claude connector</a> &middot;
+      <a href="https://cursor.directory/plugins/vianexus-vast">Cursor connector</a>
+    </p>
+  </footer>
+</div>
+
+<script>
+// --- THEME ---
+const toggle = document.getElementById('themeToggle');
+toggle.addEventListener('click', () => {
+  const r = document.documentElement;
+  const cur = r.getAttribute('data-theme');
+  r.setAttribute('data-theme', cur === 'dark' ? 'light' : 'dark');
+});
+
+// --- TOKEN ---
+const tokenInput = document.getElementById('tokenInput');
+try { tokenInput.value = localStorage.getItem('vnx_token') || ''; } catch(e) {}
+tokenInput.addEventListener('change', () => {
+  try { localStorage.setItem('vnx_token', tokenInput.value); } catch(e) {}
+});
+
+// --- CHART DEFAULTS ---
+const txtSec = getComputedStyle(document.documentElement).getPropertyValue('--text-secondary').trim() || '#9ca3af';
+const gridC = getComputedStyle(document.documentElement).getPropertyValue('--grid').trim() || 'rgba(255,255,255,0.06)';
+Chart.defaults.color = txtSec;
+Chart.defaults.borderColor = gridC;
+
+// --- EMBEDDED SNAPSHOT: SPY PRICES (replace at build time) ---
+const SPY_PRICES = [
+  {date:'2026-01-02',close:683.17},{date:'2026-01-15',close:690.42},{date:'2026-02-03',close:698.80},
+  {date:'2026-02-18',close:707.15},{date:'2026-03-02',close:712.33},{date:'2026-03-16',close:719.56},
+  {date:'2026-04-01',close:725.89},{date:'2026-04-15',close:731.22},{date:'2026-05-01',close:738.47},
+  {date:'2026-05-15',close:744.61},{date:'2026-06-01',close:749.33},{date:'2026-06-15',close:755.18},
+  {date:'2026-07-01',close:761.44},{date:'2026-07-15',close:768.90},{date:'2026-08-01',close:773.25},
+  {date:'2026-08-15',close:770.11},{date:'2026-09-01',close:764.55},{date:'2026-09-15',close:771.38},
+  {date:'2026-10-01',close:775.42},{date:'2026-10-12',close:778.00},{date:'2026-10-20',close:768.33},
+  {date:'2026-10-28',close:758.91},{date:'2026-11-01',close:752.17},{date:'2026-11-03',close:754.35}
+];
+
+// --- PRICE CHART ---
+new Chart(document.getElementById('priceChart'), {
+  type: 'line',
+  data: {
+    labels: SPY_PRICES.map(d => d.date),
+    datasets: [{
+      data: SPY_PRICES.map(d => d.close),
+      borderColor: '#3b82f6',
+      backgroundColor: 'rgba(59,130,246,0.08)',
+      fill: true,
+      tension: 0.3,
+      pointRadius: 0,
+      borderWidth: 2,
+    }]
+  },
+  plugins: [{
+    id: 'electionLine',
+    afterDatasetsDraw(chart) {
+      const idx = SPY_PRICES.findIndex(d => d.date === '2026-11-03');
+      if (idx < 0) return;
+      const {ctx, scales:{x,y}} = chart;
+      const xp = x.getPixelForValue(idx);
+      ctx.save();
+      ctx.strokeStyle = '#ef4444';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([6,4]);
+      ctx.beginPath(); ctx.moveTo(xp, y.top); ctx.lineTo(xp, y.bottom); ctx.stroke();
+      ctx.fillStyle = '#ef4444';
+      ctx.font = '11px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('Election Day', xp, y.top - 6);
+      ctx.restore();
+    }
+  }],
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { grid: { display: false }, ticks: { maxTicksLimit: 8, font: { size: 11 } } },
+      y: { grid: { color: gridC }, ticks: { font: { size: 11 }, callback: v => '$'+v } }
+    }
+  }
+});
+
+// --- HISTORICAL RETURNS ---
+const HIST_YEARS = ['1950','1954','1958','1962','1966','1970','1974','1978','1982','1986','1990','1994','1998','2002','2006','2010','2014','2018','2022'];
+const HIST_RETURNS = [8.2,26.4,31.0,18.9,12.5,9.3,31.5,7.6,22.3,10.9,23.2,31.0,23.6,14.4,12.8,18.4,8.6,11.7,12.2];
+const barColors = HIST_RETURNS.map(v => v > 20 ? '#1e40af' : (v > 10 ? '#3b82f6' : '#93c5fd'));
+
+new Chart(document.getElementById('histReturns'), {
+  type: 'bar',
+  data: {
+    labels: HIST_YEARS,
+    datasets: [{ data: HIST_RETURNS, backgroundColor: barColors, borderRadius: { topLeft: 3, topRight: 3 }, maxBarThickness: 24 }]
+  },
+  plugins: [{
+    id: 'avgLine',
+    afterDatasetsDraw(chart) {
+      const {ctx, scales:{y,x}} = chart;
+      const yp = y.getPixelForValue(16.9);
+      ctx.save(); ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 1.5; ctx.setLineDash([6,4]);
+      ctx.beginPath(); ctx.moveTo(x.left, yp); ctx.lineTo(x.right, yp); ctx.stroke();
+      ctx.fillStyle = '#ef4444'; ctx.font = '11px sans-serif'; ctx.textAlign = 'right';
+      ctx.fillText('Avg +16.9%', x.right, yp - 5);
+      ctx.restore();
+    }
+  }],
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { grid: { display: false }, ticks: { font: { size: 9 }, maxRotation: 45 } },
+      y: { grid: { color: gridC }, ticks: { font: { size: 10 }, callback: v => v+'%' }, min: 0, max: 35 }
+    }
+  }
+});
+
+// --- RETURN BUILDUP ---
+new Chart(document.getElementById('buildupChart'), {
+  type: 'bar',
+  data: {
+    labels: ['1 month', '3 months', '6 months', '12 months'],
+    datasets: [
+      { label: 'Midterm avg', data: [1.7, 5.7, 12.4, 16.9], backgroundColor: '#3b82f6', borderRadius: 4, maxBarThickness: 36 },
+      { label: 'Presidential avg', data: [0.8, 3.2, 6.1, 9.1], backgroundColor: '#6366f1', borderRadius: 4, maxBarThickness: 36 }
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { position: 'top', labels: { boxWidth: 12, font: { size: 11 } } } },
+    scales: {
+      x: { grid: { display: false }, ticks: { font: { size: 11 } } },
+      y: { grid: { color: gridC }, ticks: { font: { size: 10 }, callback: v => v+'%' }, min: 0, max: 20 }
+    }
+  }
+});
+
+// --- GOVERNMENT COMPOSITION ---
+new Chart(document.getElementById('govtChart'), {
+  type: 'bar',
+  data: {
+    labels: ['Divided Government', 'Unified Government'],
+    datasets: [{
+      data: [15.0, 11.5],
+      backgroundColor: ['#3b82f6', '#6366f1'],
+      borderRadius: 6,
+      maxBarThickness: 60,
+    }]
+  },
+  options: {
+    indexAxis: 'y',
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { grid: { color: gridC }, ticks: { font: { size: 11 }, callback: v => '+'+v+'%' }, min: 0, max: 18 },
+      y: { grid: { display: false }, ticks: { font: { size: 12, weight: '500' } } }
+    }
+  }
+});
+
+// --- LIVE REFRESH (when token is present) ---
+async function refresh() {
+  const tk = tokenInput.value.trim();
+  if (!tk) return;
+  const base = 'https://api.blueskyapi.com/v1/data';
+  try {
+    const [statsRes, newsRes] = await Promise.all([
+      fetch(`${base}/CORE/STOCK_STATS_US/SPY?token=${tk}&last=1`).then(r => r.json()),
+      fetch(`${base}/EDGE/MT_NEWSWIRES_North_America/SPY?token=${tk}&last=5`).then(r => r.json()),
+    ]);
+    if (statsRes && statsRes.length) {
+      const s = statsRes[0];
+      document.getElementById('cardRsi').textContent = s.rsi14 != null ? s.rsi14.toFixed(1) : '--';
+      document.getElementById('statRsi').textContent = s.rsi14 != null ? s.rsi14.toFixed(1) : '--';
+      document.getElementById('statBeta').textContent = s.beta != null ? s.beta.toFixed(2) : '--';
+      if (s.day50MovingAverage) document.getElementById('stat50ma').textContent = '$' + s.day50MovingAverage.toFixed(0);
+      if (s.day200MovingAverage) document.getElementById('stat200ma').textContent = '$' + s.day200MovingAverage.toFixed(0);
+      if (s.week52High) document.getElementById('stat52h').textContent = '$' + s.week52High.toFixed(0);
+      if (s.week52Low) document.getElementById('stat52l').textContent = '$' + s.week52Low.toFixed(0);
+      if (s.trailingPE) document.getElementById('statPe').textContent = s.trailingPE.toFixed(1);
+      if (s.avg30Volume) document.getElementById('statVol').textContent = (s.avg30Volume / 1e6).toFixed(0) + 'M';
+      if (s.ytdChangePercent != null) {
+        const pct = (s.ytdChangePercent * 100).toFixed(1);
+        const el = document.getElementById('cardYtd');
+        el.textContent = (pct >= 0 ? '+' : '') + pct + '%';
+        el.className = 'card-value ' + (pct >= 0 ? 'positive' : 'negative');
+      }
+    }
+    if (newsRes && newsRes.length) {
+      const list = document.getElementById('newsList');
+      list.innerHTML = '';
+      newsRes.forEach(n => {
+        const li = document.createElement('li');
+        li.className = 'news-item';
+        const t = new Date(n.datetime);
+        const time = t.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+        li.innerHTML = `<span class="news-time">${time}</span><span class="news-headline"><a href="${n.qmUrl||'#'}" target="_blank">${n.headline}</a></span>`;
+        list.appendChild(li);
+      });
+    }
+  } catch(e) { console.warn('Refresh failed:', e); }
+}
+
+tokenInput.addEventListener('change', refresh);
+if (tokenInput.value) refresh();
+</script>
+</body>
+</html>

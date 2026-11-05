@@ -17,6 +17,7 @@ Downloadable Claude skill packs powered by the [viaNexus MCP server](https://via
 | [**live-market-dashboard**](./live-market-dashboard) | Claude builds you a self-updating, single-file HTML dashboard for any watchlist — live quotes, sparklines, news, call log. No backend, no build step. | viaNexus (`quote`, `historical_prices`, `news`) via MCP at build time + REST API at run time |
 | [**rsi-screener**](./rsi-screener) | Claude builds you a single-file HTML momentum board ranking a watchlist by RSI-14, with the whole universe plotted on one oscillator axis. One call, static snapshot, no token in the file. | viaNexus (`stock_stats_us`) |
 | [**earnings-calendar**](./earnings-calendar) | Claude builds you a single-file HTML earnings calendar — a real month grid colour-coded by pre-market vs post-market release. Static snapshot, or a live page that fetches with your own token. | viaNexus (`earnings_calendar`) |
+| [**election-market-dashboard**](./election-market-dashboard) | Claude builds you a single-file HTML election market analysis: live index data alongside 75 years of post-election return patterns, government composition effects, technical stats, and cited research. | viaNexus (`historical_prices`, `stock_stats_us`, `mt_newswires_north_america`) + historical research data |
 
 ---
 
@@ -67,6 +68,7 @@ Just ask Claude a question that matches the skill. Each skill has a `description
 | portfolio-monitor | "How's my portfolio today? AAPL 100, MSFT 50, NVDA 25" · "Any movers in my holdings?" |
 | live-market-dashboard | "Build me a live dashboard for AAPL NVDA TSM SPY" · "Make a market monitor that refreshes itself" |
 | rsi-screener | "Which of my holdings are overbought?" · "Build an RSI screen for AAPL MSFT NVDA TSLA" · "Show me what's oversold right now" |
+| election-market-dashboard | "Build me an election market dashboard" · "How do stocks perform after midterms?" · "Post-election market analysis" |
 
 ---
 
